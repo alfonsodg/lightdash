@@ -1,0 +1,33 @@
+{
+  "name": "@lightdash/agent-bi",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "description": "Isolated agent extension core (Phase 1 scaffold: config, logging, public surface)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsrs --project tsconfig.json --noEmit",
+    "format": "oxfmt ./src --check",
+    "fix-format": "oxfmt ./src",
+    "formatter": "oxfmt",
+    "lint": "pnpm run linter ./src",
+    "fix-lint": "pnpm run linter ./src --fix",
+    "linter": "oxlint -c .oxlintrc.json --ignore-path ./../../.gitignore",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "oxlint": "1.75.0",
+    "pg": "8.23.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  }
+}
