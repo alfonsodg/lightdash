@@ -20,7 +20,7 @@ jobs:
       github.repository == 'alfonsodg/lightdash' &&
       github.ref_type == 'tag' &&
       startsWith(github.ref_name, 'feat-9-')
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       NODE_OPTIONS: '--max-old-space-size=8192'
@@ -104,7 +104,7 @@ jobs:
       github.ref_type == 'tag' &&
       startsWith(github.ref_name, 'feat-9-')
     needs: validate
-    runs-on: depot-ubuntu-24.04-4
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
