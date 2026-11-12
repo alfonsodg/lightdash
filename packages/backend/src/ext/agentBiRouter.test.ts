@@ -26,6 +26,7 @@ vi.unstubAllGlobals();
 
 const startApp = async (options: {
     user: typeof defaultSessionUser | undefined;
+    account?: unknown;
     flagEnabled: boolean;
     flagGet: ReturnType<typeof vi.fn>;
 }) => {
@@ -34,6 +35,12 @@ const startApp = async (options: {
     app.use((req, _res, next) => {
         if (options.user) {
             req.user = options.user;
+        }
+        if (options.account) {
+            req.account = {
+                isAuthenticated: () => true,
+                ...(options.account as Record<string, unknown>),
+            } as never;
         }
         req.services = {
             getFeatureFlagService: () => ({ get: options.flagGet }),
@@ -119,6 +126,159 @@ describe('agentBiRouter health gate', () => {
         } finally {
             await stopApp(server);
         }
+    });
+
+    describe('agentBiRouter preflight', () => {
+        test('rejects unauthenticated preflight before flag evaluation', async () => {
+            const flagGet = vi.fn(async () => ({ enabled: true }));
+            const server = await startApp({
+                user: undefined,
+                flagEnabled: true,
+                flagGet,
+            });
+            const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+            try {
+                const response = await fetch(`${base}/api/ext/v1/preflight`);
+                expect(response.status).toBe(401);
+                expect(flagGet).not.toHaveBeenCalled();
+            } finally {
+                await stopApp(server);
+            }
+        });
+
+        test('returns 404 when the flag is off for the actor', async () => {
+            const flagGet = vi.fn(async () => ({ enabled: false }));
+            const server = await startApp({
+                user: defaultSessionUser,
+                flagEnabled: false,
+                flagGet,
+            });
+            const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+            try {
+                const response = await fetch(`${base}/api/ext/v1/preflight`);
+                expect(response.status).toBe(404);
+                expect(flagGet).toHaveBeenCalledWith({
+                    user: defaultSessionUser,
+                    featureFlagId: FeatureFlags.AgentBi,
+                });
+            } finally {
+                await stopApp(server);
+            }
+        });
+
+        test('returns the resolved principal and effective capabilities', async () => {
+            const flagGet = vi.fn(async () => ({ enabled: true }));
+            const server = await startApp({
+                user: defaultSessionUser,
+                flagEnabled: true,
+                flagGet,
+            });
+            const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+            try {
+                const response = await fetch(`${base}/api/ext/v1/preflight`);
+                expect(response.status).toBe(200);
+                const body = (await response.json()) as {
+                    status: string;
+                    results: {
+                        principal: Record<string, string>;
+                        capabilities: string[];
+                        verdicts: Record<string, { allowed: boolean }>;
+                    };
+                };
+                expect(body.status).toBe('ok');
+                expect(body.results.principal.userUuid).toBe(
+                    defaultSessionUser.userUuid,
+                );
+                expect(body.results.principal.organizationUuid).toBe(
+                    defaultSessionUser.organizationUuid,
+                );
+                expect(body.results.principal.authType).toBe('session');
+                expect(body.results.principal.cacheKey).toContain(
+                    `session:${defaultSessionUser.userUuid}:${defaultSessionUser.organizationUuid}:`,
+                );
+                expect(body.results.principal).not.toHaveProperty('ability');
+                expect(body.results.capabilities).toEqual(
+                    expect.arrayContaining([
+                        'discover',
+                        'metric_query',
+                        'compose_query',
+                    ]),
+                );
+                expect(body.results.capabilities).not.toContain('raw_sql');
+                expect(body.results.verdicts.raw_sql.allowed).toBe(false);
+                expect(JSON.stringify(body).toLowerCase()).not.toContain(
+                    'lightdash',
+                );
+            } finally {
+                await stopApp(server);
+            }
+        });
+
+        test('keeps preflight isolation per user', async () => {
+            const flagGet = vi.fn(async () => ({ enabled: true }));
+            const otherUser = {
+                ...defaultSessionUser,
+                userUuid: 'other-user-uuid',
+            };
+            const firstServer = await startApp({
+                user: defaultSessionUser,
+                flagEnabled: true,
+                flagGet,
+            });
+            const secondServer = await startApp({
+                user: otherUser,
+                flagEnabled: true,
+                flagGet,
+            });
+            try {
+                const firstBase = `http://127.0.0.1:${(firstServer.address() as AddressInfo).port}`;
+                const secondBase = `http://127.0.0.1:${(secondServer.address() as AddressInfo).port}`;
+                const first = (await (
+                    await fetch(`${firstBase}/api/ext/v1/preflight`)
+                ).json()) as {
+                    results: { principal: { cacheKey: string } };
+                };
+                const second = (await (
+                    await fetch(`${secondBase}/api/ext/v1/preflight`)
+                ).json()) as {
+                    results: { principal: { cacheKey: string } };
+                };
+                expect(first.results.principal.cacheKey).not.toBe(
+                    second.results.principal.cacheKey,
+                );
+            } finally {
+                await stopApp(firstServer);
+                await stopApp(secondServer);
+            }
+        });
+
+        test('rejects service-account credentials with 401', async () => {
+            const flagGet = vi.fn(async () => ({ enabled: true }));
+            const server = await startApp({
+                user: undefined,
+                account: {
+                    authentication: { type: 'service-account' },
+                    organization: {
+                        organizationUuid: defaultSessionUser.organizationUuid,
+                    },
+                    user: {
+                        userUuid: defaultSessionUser.userUuid,
+                        type: 'registered',
+                        ability: defaultSessionUser.ability,
+                    },
+                },
+                flagEnabled: true,
+                flagGet,
+            });
+            const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+            try {
+                const response = await fetch(`${base}/api/ext/v1/preflight`);
+                expect(response.status).toBe(401);
+                expect(flagGet).toHaveBeenCalled();
+            } finally {
+                await stopApp(server);
+            }
+        });
     });
 
     test('does not depend on the extension package', () => {
