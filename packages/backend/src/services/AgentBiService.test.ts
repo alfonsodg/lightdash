@@ -16,6 +16,18 @@ const ORG = '11111111-1111-4111-8111-111111111111';
 const PROJECT = '22222222-2222-4222-8222-222222222222';
 const USER = '33333333-3333-4333-8333-333333333333';
 
+const row = (overrides: Record<string, unknown> = {}) => ({
+    content: 'orders status pending',
+    explore_name: 'orders',
+    field_kind: null,
+    field_name: null,
+    project_uuid: PROJECT,
+    resource_type: 'explore',
+    resource_uuid: '11111111-1111-4111-8111-111111111111',
+    table_name: null,
+    ...overrides,
+});
+
 const makeAccount = (rules: Array<Record<string, unknown>>): Account =>
     ({
         authentication: { type: 'session' },
@@ -163,33 +175,102 @@ describe('AgentBiService project access', () => {
 });
 
 describe('AgentBiService catalog search', () => {
-    const row = (overrides: Record<string, unknown> = {}) => ({
-        content: 'orders status pending',
-        explore_name: 'orders',
-        field_kind: null,
-        field_name: null,
-        project_uuid: PROJECT,
-        resource_type: 'explore',
-        resource_uuid: '11111111-1111-4111-8111-111111111111',
-        table_name: null,
-        ...overrides,
+    it('scopes catalog search to the requested project', async () => {
+        const otherProject = '44444444-4444-4444-8444-444444444444';
+        const projectHit = row({
+            field_kind: 'dimension',
+            field_name: 'status',
+            resource_type: 'dimension',
+            table_name: 'orders',
+        });
+        const otherProjectHit = row({
+            field_kind: 'dimension',
+            field_name: 'status',
+            project_uuid: otherProject,
+            resource_type: 'dimension',
+            table_name: 'orders',
+        });
+        const { queries, service } = makeService({
+            onQuery: (text, params) => {
+                if (!text.includes('catalog_index')) return { rows: [] };
+                const rows = [projectHit, otherProjectHit];
+                return {
+                    rows: text.includes('WHERE project_uuid = $1')
+                        ? rows.filter(
+                              (result) => result.project_uuid === params[0],
+                          )
+                        : rows,
+                };
+            },
+        });
+        const visibility = {
+            allowedExplores: new Set(['orders']),
+            allowedFieldsByExplore: new Map([
+                ['orders', new Set(['orders.status'])],
+            ]),
+        };
+        const { search } = service.buildToolDeps({}).catalogSearch;
+        const hits = (await Reflect.apply(search, undefined, [
+            'orders status',
+            visibility,
+            5,
+            PROJECT,
+        ])) as Array<{ document: { projectUuid: string } }>;
+
+        expect(queries[0]?.text).toContain('WHERE project_uuid = $1');
+        expect(queries[0]?.params).toEqual([PROJECT]);
+        expect(hits.map((hit) => hit.document.projectUuid)).toEqual([PROJECT]);
     });
 
     it('maps index rows to searchable documents', async () => {
+        const visible = row({
+            content: 'orders status pending',
+            field_kind: 'dimension',
+            field_name: 'status',
+            resource_type: 'dimension',
+            table_name: 'orders',
+        });
         const { service } = makeService({
             onQuery: (text) =>
                 text.includes('catalog_index')
-                    ? { rows: [row(), row({ explore_name: 'payments' })] }
+                    ? {
+                          rows: [
+                              row(),
+                              visible,
+                              row({ explore_name: 'payments' }),
+                          ],
+                      }
                     : { rows: [] },
         });
         const matches = await service.searchCatalogForProject(
             PROJECT,
             'orders status',
             5,
+            {
+                allowedExplores: new Set(['orders']),
+                allowedFieldsByExplore: new Map([
+                    ['orders', new Set(['orders.status'])],
+                ]),
+            },
         );
-        expect(matches.map((document) => document.exploreName)).toContain(
-            'orders',
-        );
+        expect(matches.map((document) => document.fieldName)).toEqual([
+            'status',
+        ]);
+    });
+
+    it('fails closed when the caller has no authorized explores', async () => {
+        const field = row({
+            field_kind: 'dimension',
+            field_name: 'status',
+            resource_type: 'dimension',
+            table_name: 'orders',
+        });
+        const { service } = makeService({
+            onQuery: () => ({ rows: [row(), field] }),
+        });
+        await expect(
+            service.searchCatalogForProject(PROJECT, 'orders status'),
+        ).resolves.toEqual([]);
     });
 
     it('returns nothing when nothing matches', async () => {
@@ -202,6 +283,124 @@ describe('AgentBiService catalog search', () => {
             5,
         );
         expect(matches).toHaveLength(0);
+    });
+});
+
+describe('AgentBiService catalog index synchronization', () => {
+    it('indexes cached project metadata before building visible explores', async () => {
+        const cachedExplore = {
+            baseTable: 'orders',
+            label: 'Orders',
+            name: 'orders',
+            tags: ['finance'],
+            tables: {
+                orders: {
+                    dimensions: {
+                        status: {
+                            description: 'Order status',
+                            fieldType: 'dimension',
+                            hidden: false,
+                            label: 'Status',
+                            name: 'status',
+                            type: 'string',
+                        },
+                    },
+                    label: 'Orders',
+                    metrics: {
+                        total: {
+                            description: 'Total revenue',
+                            fieldType: 'metric',
+                            hidden: false,
+                            label: 'Total',
+                            name: 'total',
+                            type: 'sum',
+                        },
+                    },
+                    name: 'orders',
+                },
+            },
+        };
+        const findExploresFromCache = vi.fn(async () => ({
+            'orders-uuid': cachedExplore,
+        }));
+        const queries: Array<{ params: unknown[]; text: string }> = [];
+        const agentBiModel = {
+            query: async (text: string, params?: unknown[]) => {
+                queries.push({ params: params ?? [], text });
+                if (text.includes('SELECT DISTINCT explore_name')) {
+                    return {
+                        rows: queries.some(
+                            (query) =>
+                                query.text.includes('INSERT INTO') &&
+                                query.text.includes('catalog_index'),
+                        )
+                            ? [{ explore_name: 'orders' }]
+                            : [],
+                    };
+                }
+                return { rows: [] };
+            },
+        } as unknown as AgentBiModel;
+        const service = new AgentBiService({
+            agentBiModel,
+            projectModel: { findExploresFromCache } as never,
+            siteUrl: 'https://instance.example',
+        });
+
+        const names = await service.getCatalogExploreNames(PROJECT);
+
+        expect(findExploresFromCache).toHaveBeenCalledWith(PROJECT, 'uuid');
+        expect(names).toEqual(['orders']);
+        const upsert = queries.find(
+            (query) =>
+                query.text.includes('INSERT INTO') &&
+                query.text.includes('catalog_index'),
+        );
+        expect(upsert?.params).toHaveLength(1);
+        expect(JSON.stringify(upsert?.params[0])).toContain('Order status');
+        expect(JSON.stringify(upsert?.params[0])).toContain('Total revenue');
+    });
+
+    it('deletes stale catalog rows within the current project', async () => {
+        const staleResourceUuid = '55555555-5555-4555-8555-555555555555';
+        const queries: Array<{ params: unknown[]; text: string }> = [];
+        const agentBiModel = {
+            query: async (text: string, params?: unknown[]) => {
+                queries.push({ params: params ?? [], text });
+                if (text.includes('SELECT resource_type AS')) {
+                    return {
+                        rows: [
+                            {
+                                content: 'old orders field',
+                                resourceType: 'dimension',
+                                resourceUuid: staleResourceUuid,
+                            },
+                        ],
+                    };
+                }
+                return { rows: [] };
+            },
+        } as unknown as AgentBiModel;
+        const service = new AgentBiService({
+            agentBiModel,
+            projectModel: { findExploresFromCache: async () => ({}) } as never,
+            siteUrl: 'https://instance.example',
+        });
+
+        await service.getCatalogExploreNames(PROJECT);
+
+        const deletion = queries.find((query) =>
+            query.text.startsWith('DELETE FROM'),
+        );
+        expect(deletion?.params).toEqual([
+            PROJECT,
+            JSON.stringify([
+                {
+                    resource_type: 'dimension',
+                    resource_uuid: staleResourceUuid,
+                },
+            ]),
+        ]);
     });
 });
 
@@ -447,6 +646,46 @@ describe('AgentBiService thread turns', () => {
                     input: { sql: 'SELECT 1' },
                     tool: 'other_tool',
                 },
+                threadUuid: THREAD,
+            }),
+        ).rejects.toThrowError(ForbiddenError);
+    });
+
+    it('rejects resume when the approved view context has changed', async () => {
+        const { service, client } = setupTurn(
+            [],
+            [
+                [threadRow()],
+                [
+                    approvalRow({
+                        context: {
+                            pinnedContext: {
+                                kind: 'dashboard',
+                                slug: 'revenue',
+                            },
+                            runtimeOverrides: {
+                                parameters: { currency: 'EUR' },
+                            },
+                        },
+                    }),
+                ],
+                [threadRow()],
+            ],
+        );
+        await expect(
+            service.runThreadTurn({
+                access: accessOf(principal.userUuid),
+                llm: client as never,
+                onEvent: () => {},
+                pinnedContext: { kind: 'dashboard', slug: 'revenue' },
+                principal,
+                projectUuid: PROJECT,
+                resumeApproved: {
+                    approvalUuid: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaa01',
+                    input: { sql: 'SELECT 1' },
+                    tool: 'run_sql',
+                },
+                runtimeOverrides: { parameters: { currency: 'USD' } },
                 threadUuid: THREAD,
             }),
         ).rejects.toThrowError(ForbiddenError);

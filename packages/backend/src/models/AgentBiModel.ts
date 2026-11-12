@@ -13,12 +13,14 @@ export class AgentBiModel {
         text: string,
         params?: unknown[],
     ): Promise<{ rows: Array<Record<string, unknown>> }> {
-        const result = (await this.database.raw(
-            text,
-            params ?? [],
-        )) as unknown as {
-            rows?: Array<Record<string, unknown>>;
-        };
-        return { rows: result.rows ?? [] };
+        const connection = await this.database.client.acquireConnection();
+        try {
+            const result = (await connection.query(text, params ?? [])) as {
+                rows?: Array<Record<string, unknown>>;
+            };
+            return { rows: result.rows ?? [] };
+        } finally {
+            await this.database.client.releaseConnection(connection);
+        }
     }
 }

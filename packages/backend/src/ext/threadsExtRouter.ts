@@ -1,5 +1,6 @@
 import type { OrchestratorEvent } from '@lightdash/agent-bi';
 import {
+    AuthorizationError,
     ConflictError,
     FeatureFlags,
     ForbiddenError,
@@ -9,6 +10,7 @@ import {
     type SessionUser,
 } from '@lightdash/common';
 import express, { type Request, type Response, type Router } from 'express';
+import { z } from 'zod';
 import {
     allowApiKeyAuthentication,
     isAuthenticated,
@@ -63,6 +65,25 @@ const writeSseEvent = (res: Response, type: string, data: unknown): void => {
     res.write(`event: ${type}\n`);
     res.write(`data: ${JSON.stringify(data)}\n\n`);
 };
+
+const turnContextSchema = z.object({
+    pinnedContext: z
+        .object({
+            kind: z.enum(['chart', 'dashboard']),
+            slug: z.string().trim().min(1),
+        })
+        .strict()
+        .nullish(),
+    runtimeOverrides: z
+        .object({
+            activeTab: z.string().optional(),
+            dateZoom: z.string().optional(),
+            filters: z.record(z.string(), z.unknown()).optional(),
+            parameters: z.record(z.string(), z.unknown()).optional(),
+        })
+        .strict()
+        .nullish(),
+});
 
 export const createThreadsExtRouter = (): Router => {
     const router = express.Router({ mergeParams: true });
@@ -213,6 +234,14 @@ export const createThreadsExtRouter = (): Router => {
                 };
                 userText?: unknown;
             };
+            const context = turnContextSchema.safeParse(req.body);
+            if (
+                !context.success ||
+                (context.data.runtimeOverrides != null &&
+                    context.data.pinnedContext == null)
+            ) {
+                throw new ParameterError('Invalid live view context.');
+            }
             if (
                 userText !== undefined &&
                 (typeof userText !== 'string' || userText.length === 0)
@@ -225,10 +254,100 @@ export const createThreadsExtRouter = (): Router => {
                 throw new ForbiddenError();
             }
             const service = getService(req);
+            const getCatalogVisibility = async () => {
+                const exploreNames =
+                    await service.getCatalogExploreNames(projectUuid);
+                const allowedExplores = new Set<string>();
+                const allowedFieldsByExplore = new Map<
+                    string,
+                    ReadonlySet<string>
+                >();
+                const projectService = req.services.getProjectService();
+                const { account } = req;
+                if (account === undefined) throw new ForbiddenError();
+                const visibleExplores = await Promise.all(
+                    exploreNames.map(async (exploreName) => {
+                        try {
+                            const explore = await projectService.getExplore(
+                                account,
+                                projectUuid,
+                                exploreName,
+                            );
+                            const fields = new Set<string>();
+                            for (const table of Object.values(explore.tables)) {
+                                for (const [fieldName, field] of Object.entries(
+                                    table.dimensions ?? {},
+                                )) {
+                                    if (!field.hidden) {
+                                        fields.add(
+                                            `${table.name}.${fieldName}`,
+                                        );
+                                    }
+                                }
+                                for (const [fieldName, field] of Object.entries(
+                                    table.metrics ?? {},
+                                )) {
+                                    if (!field.hidden) {
+                                        fields.add(
+                                            `${table.name}.${fieldName}`,
+                                        );
+                                    }
+                                }
+                            }
+                            return { exploreName, fields };
+                        } catch (error) {
+                            if (
+                                error instanceof AuthorizationError ||
+                                error instanceof ForbiddenError ||
+                                error instanceof NotFoundError
+                            ) {
+                                return undefined;
+                            }
+                            throw error;
+                        }
+                    }),
+                );
+                for (const visibleExplore of visibleExplores) {
+                    if (visibleExplore !== undefined) {
+                        allowedExplores.add(visibleExplore.exploreName);
+                        allowedFieldsByExplore.set(
+                            visibleExplore.exploreName,
+                            visibleExplore.fields,
+                        );
+                    }
+                }
+                return { allowedExplores, allowedFieldsByExplore };
+            };
+            const { pinnedContext, runtimeOverrides } = context.data;
+            const authorizeContext = async (): Promise<void> => {
+                if (pinnedContext == null) return;
+                if (pinnedContext.kind === 'dashboard') {
+                    if (req.user === undefined) throw new ForbiddenError();
+                    const dashboard = await req.services
+                        .getDashboardService()
+                        .getByIdOrSlug(req.user, pinnedContext.slug, {
+                            projectUuid,
+                        });
+                    if (dashboard.projectUuid !== projectUuid) {
+                        throw new ForbiddenError();
+                    }
+                } else {
+                    if (req.account === undefined) throw new ForbiddenError();
+                    const chart = await req.services
+                        .getSavedChartService()
+                        .get(pinnedContext.slug, req.account, { projectUuid });
+                    if (chart.projectUuid !== projectUuid) {
+                        throw new ForbiddenError();
+                    }
+                }
+            };
+            await authorizeContext();
             const headers: Record<string, string> = {};
-            const { authorization } = req.headers;
+            const { authorization, cookie } = req.headers;
             if (typeof authorization === 'string' && authorization.length > 0) {
                 headers.Authorization = authorization;
+            } else if (typeof cookie === 'string' && cookie.length > 0) {
+                headers.Cookie = cookie;
             }
             res.writeHead(200, {
                 Connection: 'keep-alive',
@@ -247,14 +366,18 @@ export const createThreadsExtRouter = (): Router => {
             };
             await service.runThreadTurn({
                 access,
+                authorizeContext,
                 headers,
+                getCatalogVisibility,
                 onEvent,
                 principal: {
                     ...principal,
                     userUuid,
                 },
+                pinnedContext,
                 projectUuid,
                 resumeApproved,
+                runtimeOverrides,
                 threadUuid,
                 userText:
                     typeof userText === 'string' && userText.length > 0

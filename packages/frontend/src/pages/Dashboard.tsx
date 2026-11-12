@@ -51,6 +51,7 @@ import Page from '../components/common/Page/Page';
 import DashboardChartEditorModal from '../components/DashboardTiles/DashboardChartEditorModal';
 import { CREATE_SAVED_CHART_VERSION_SEARCH_PARAM } from '../components/DashboardTiles/useDashboardChartEditorUrlSync';
 import PageSpinner from '../components/PageSpinner';
+import AgentBiDashboardLauncher from '../ext/agentBi/components/AgentBiDashboardLauncher';
 import { useDashboardCommentsCheck } from '../features/comments';
 import DismissedDraftAlert from '../features/contentAsCode/components/DismissedDraftAlert';
 import DraftOverlayFailureAlert from '../features/contentAsCode/components/DraftOverlayFailureAlert';
@@ -1771,6 +1772,9 @@ const Dashboard: FC = () => {
                     ) : (
                         <DashboardHeader {...dashboardHeaderProps} />
                     )}
+                    {projectUuid ? (
+                        <AgentBiDashboardLauncher projectUuid={projectUuid} />
+                    ) : null}
 
                     {isChartEditorEnabled && dashboard.uuid ? (
                         <DashboardChartEditorModal

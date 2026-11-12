@@ -1,32 +1,40 @@
-// Reads live dashboard state (filters, tab, date zoom, parameters)
-// for the contextual drawer. Outside a dashboard provider the
-// selectors return empty values and the context is null.
 import { selectActiveTab } from '../../../features/dashboard/store/dashboardEditSelectors';
+import { selectDashboard } from '../../../features/dashboard/store/dashboardSourceSelectors';
 import {
     useDashboardAllFilters,
     useDashboardSelector,
 } from '../../../features/dashboard/store/hooks';
-import { selectDateZoomGranularity } from '../../../features/dashboard/store/selectors';
+import {
+    selectDateZoomGranularity,
+    selectParameterValues,
+} from '../../../features/dashboard/store/selectors';
 import type { AgentBiDrawerContext } from '../components/AgentBiContextualDrawer';
 
 export const useAgentBiDashboardContext = (): AgentBiDrawerContext | null => {
     const activeTab = useDashboardSelector(selectActiveTab);
+    const dashboard = useDashboardSelector(selectDashboard);
     const dateZoom = useDashboardSelector(selectDateZoomGranularity);
+    const parameters = useDashboardSelector(selectParameterValues);
     const filters = useDashboardAllFilters();
-    const activeFilters = [...filters.dimensions, ...filters.metrics];
+    const activeFilters = [
+        ...filters.dimensions,
+        ...filters.metrics,
+        ...filters.tableCalculations,
+    ];
     if (
         activeTab === undefined &&
+        dashboard?.slug === undefined &&
         dateZoom === undefined &&
-        activeFilters.length === 0
+        activeFilters.length === 0 &&
+        Object.keys(parameters).length === 0
     ) {
         return null;
     }
     return {
         activeTab: activeTab?.name,
-        dashboardFilters: activeFilters.map((filter) => ({
-            fieldId: filter.target.fieldId,
-            value: filter.operator,
-        })),
+        dashboardFilters: filters,
+        dashboardSlug: dashboard?.slug,
         dateZoom: dateZoom === undefined ? undefined : String(dateZoom),
+        parameters,
     };
 };

@@ -1,0 +1,225 @@
+name: Agent BI validation image
+
+on:
+  push:
+    tags:
+      - 'feat-9-*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  validate:
+    name: Validate issue #9 changes
+    if: github.repository == 'alfonsodg/lightdash'
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 90
+    env:
+      NODE_OPTIONS: '--max-old-space-size=8192'
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.ref }}
+
+      - name: Read Node pin
+        id: node-version
+        run: echo "version=$(tr -d '[:space:]' < .nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@${{ steps.node-version.outputs.version }}
+          cache: true
+          save-cache: false
+          install: false
+
+      - name: Install packages
+        run: pnpm install --frozen-lockfile --prefer-offline --network-concurrency=16
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Lint changed Agent BI and backend files
+        run: |
+          pnpm -F agent-bi run linter \
+            src/catalog/index.ts \
+            src/client/lightdashV2Client.test.ts \
+            src/client/lightdashV2Client.ts \
+            src/runtime/agentOrchestrator.test.ts \
+            src/runtime/agentOrchestrator.ts \
+            src/runtime/agentPrompt.ts \
+            src/runtime/approvalGate.test.ts \
+            src/runtime/approvalGate.ts \
+            src/tools/discoveryTools.test.ts \
+            src/tools/discoveryTools.ts \
+            src/tools/queryTools.test.ts \
+            src/tools/queryTools.ts
+          pnpm -F backend run linter \
+            src/ext/threadsExtRouter.test.ts \
+            src/ext/threadsExtRouter.ts \
+            src/models/AgentBiModel.test.ts \
+            src/models/AgentBiModel.ts \
+            src/services/AgentBiCatalogIndex.ts \
+            src/services/AgentBiService.test.ts \
+            src/services/AgentBiService.ts
+
+      - name: Lint frontend
+        run: pnpm -F frontend lint
+
+      - name: Typecheck changed packages
+        run: |
+          pnpm -F agent-bi typecheck
+          pnpm -F backend typecheck
+          pnpm -F frontend typecheck
+
+      - name: Test Agent BI runtime
+        run: pnpm -F agent-bi test
+
+      - name: Test backend Agent BI bridge
+        run: >-
+          pnpm -F backend test
+          src/ext/threadsExtRouter.test.ts
+          src/models/AgentBiModel.test.ts
+          src/services/AgentBiService.test.ts
+
+      - name: Test frontend Agent BI extension
+        run: pnpm -F frontend test src/ext/agentBi
+
+  build-scan-publish:
+    name: Build, scan and publish validation image
+    if: github.repository == 'alfonsodg/lightdash'
+    needs: validate
+    runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.ref }}
+
+      - name: Set image tag
+        id: version
+        env:
+          IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+        run: echo "image_ref=$IMAGE_NAME:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: type=sha,format=long,prefix=${{ github.ref_name }}-
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reject an existing image tag
+        env:
+          IMAGE_REF: ${{ steps.version.outputs.image_ref }}
+        run: |
+          set +e
+          inspect_output="$(docker manifest inspect "$IMAGE_REF" 2>&1)"
+          inspect_status=$?
+          set -e
+          if [ "$inspect_status" -eq 0 ]; then
+            echo "Refusing to overwrite existing image tag: $IMAGE_REF" >&2
+            exit 1
+          fi
+          shopt -s nocasematch
+          if [[ "$inspect_output" =~ manifest[[:space:]_]+unknown|name[[:space:]_]+unknown|not[[:space:]]found|404 ]]; then
+            echo "Image tag is not present yet: $IMAGE_REF"
+            exit 0
+          fi
+          echo "$inspect_output" >&2
+          exit "$inspect_status"
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1
+
+      - name: Build image locally for validation
+        uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1
+        with:
+          project: bgbbt3d0kc
+          token: ${{ secrets.DEPOT_PROJECT_TOKEN }}
+          context: .
+          file: dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SENTRY_AUTH_TOKEN=
+            SENTRY_ORG=
+            SENTRY_RELEASE_VERSION=
+            SENTRY_FRONTEND_PROJECT=
+            SENTRY_BACKEND_PROJECT=
+            SENTRY_ENVIRONMENT=
+
+      - name: Generate image SBOM
+        id: sbom
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.version.outputs.image_ref }}
+          format: cyclonedx
+          output: image-sbom.cdx.json
+          exit-code: '0'
+          vuln-type: os,library
+          list-all-pkgs: 'true'
+
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.version.outputs.image_ref }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Upload image SBOM
+        if: always() && steps.sbom.outcome == 'success'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        with:
+          name: agent-bi-image-sbom-${{ github.ref_name }}-${{ github.sha }}
+          path: image-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish image to GitHub Container Registry
+        env:
+          IMAGE_REF: ${{ steps.version.outputs.image_ref }}
+        run: docker push "$IMAGE_REF"
+
+      - name: Summarize published image
+        env:
+          IMAGE_REF: ${{ steps.version.outputs.image_ref }}
+        run: |
+          {
+            echo '## Agent BI validation image'
+            echo
+            echo "Published `$IMAGE_REF` after the Trivy vulnerability scan passed."
+            echo 'The CycloneDX SBOM is attached to this workflow run.'
+          } >> "$GITHUB_STEP_SUMMARY"

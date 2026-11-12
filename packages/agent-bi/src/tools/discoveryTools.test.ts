@@ -101,14 +101,25 @@ const setup = (
         return responses[key];
     };
     const fieldCalls: Array<{ body: unknown; projectUuid: string }> = [];
+    const catalogCalls: Array<{ projectUuid: string | undefined }> = [];
     const pollCalls: string[] = [];
     const tools = createDiscoveryTools({
         auditClient,
         catalogSearch: {
-            search: (query: string, visibility: CatalogVisibility) =>
-                [catalogHit('orders'), catalogHit('payments')].filter((hit) =>
-                    visibility.allowedExplores.has(hit.document.exploreName),
-                ),
+            search: (
+                _query: string,
+                visibility: CatalogVisibility,
+                _limit: number,
+                projectUuid?: string,
+            ) => {
+                catalogCalls.push({ projectUuid });
+                return [catalogHit('orders'), catalogHit('payments')].filter(
+                    (hit) =>
+                        visibility.allowedExplores.has(
+                            hit.document.exploreName,
+                        ),
+                );
+            },
         },
         discoveryFetch,
         fieldValuesClient: {
@@ -124,7 +135,7 @@ const setup = (
         policyContext: { toggles: defaultCapabilityToggles() },
         ...overrides,
     });
-    return { fieldCalls, pollCalls, tools };
+    return { catalogCalls, fieldCalls, pollCalls, tools };
 };
 
 describe('list_explores', () => {
@@ -246,6 +257,19 @@ describe('get_explore', () => {
 });
 
 describe('search_catalog_fields', () => {
+    it('passes the requested project to catalog search', async () => {
+        const recorded: DiscoveryFetchRequest[] = [];
+        const { catalogCalls, tools } = setup({}, recorded);
+        await tools.executeTool(
+            'search_catalog_fields',
+            { projectUuid: PROJECT_UUID, query: 'status' },
+            allowAllPrincipal(),
+            { visibility: visibilityWith('orders') },
+        );
+
+        expect(catalogCalls[0]?.projectUuid).toBe(PROJECT_UUID);
+    });
+
     it('filters hits through the caller visibility lists', async () => {
         const recorded: DiscoveryFetchRequest[] = [];
         const { tools } = setup({}, recorded);

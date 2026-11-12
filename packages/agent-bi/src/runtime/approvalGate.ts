@@ -16,6 +16,7 @@ export type ApprovalStatus = 'approved' | 'pending' | 'rejected';
 
 export interface ApprovalRequest {
     approvalUuid: string;
+    context: unknown;
     decidedBy: string | null;
     input: unknown;
     requestedBy: string | null;
@@ -76,6 +77,7 @@ export const parseApprovalContent = (
         typeof parsed.decidedBy === 'string' ? parsed.decidedBy : null;
     return {
         approvalUuid: messageUuid,
+        context: parsed.context ?? null,
         decidedBy,
         input: parsed.input ?? null,
         requestedBy,
@@ -124,6 +126,7 @@ export const requestApproval = async (
     store: ApprovalMessageStore,
     input: {
         access: ThreadAccess;
+        context?: unknown;
         input: unknown;
         threadUuid: string;
         tool: string;
@@ -133,6 +136,7 @@ export const requestApproval = async (
         throw new ApprovalGateError('INVALID_INPUT', 'Tool name is required.');
     }
     const envelope = JSON.stringify({
+        context: input.context ?? null,
         decidedBy: null,
         input: input.input ?? null,
         kind: APPROVAL_MESSAGE_KIND,
@@ -199,6 +203,7 @@ export const resolveApproval = async (
         store.updateMessageContent(
             message.messageUuid,
             JSON.stringify({
+                context: request.context,
                 decidedBy: input.access.requesterUuid,
                 input: request.input,
                 kind: APPROVAL_MESSAGE_KIND,

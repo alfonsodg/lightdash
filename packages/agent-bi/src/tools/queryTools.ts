@@ -57,6 +57,7 @@ export const TOOL_CAPABILITIES: Record<QueryToolName, QueryCapability> = {
 const MAX_NAME_CHARS = 256;
 const MAX_SQL_CHARS = 20000;
 const DEFAULT_COMPOSE_MAX_QUERIES = 10;
+const DEFAULT_METRIC_QUERY_LIMIT = 100;
 
 const nameSchema = z.string().trim().min(1).max(MAX_NAME_CHARS);
 
@@ -384,18 +385,13 @@ export const createQueryTools = (deps: QueryToolDeps) => {
             options: AgentToolRuntimeOptions = {},
         ) => {
             const query: V2MetricQueryBody = {
+                dimensions: input.dimensions ?? [],
                 exploreName: input.exploreName,
-                ...(input.dimensions !== undefined
-                    ? { dimensions: input.dimensions }
-                    : {}),
-                ...(input.filters !== undefined
-                    ? { filters: input.filters }
-                    : {}),
-                ...(input.limit !== undefined ? { limit: input.limit } : {}),
-                ...(input.metrics !== undefined
-                    ? { metrics: input.metrics }
-                    : {}),
-                ...(input.sorts !== undefined ? { sorts: input.sorts } : {}),
+                filters: input.filters ?? {},
+                limit: input.limit ?? DEFAULT_METRIC_QUERY_LIMIT,
+                metrics: input.metrics ?? [],
+                sorts: input.sorts ?? [],
+                tableCalculations: [],
                 ...(input.timezone !== undefined
                     ? { timezone: input.timezone }
                     : {}),

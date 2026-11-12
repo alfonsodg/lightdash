@@ -21,6 +21,7 @@ import {
     type AuditQueryClient,
     type CatalogDocument,
     type CatalogFieldSearcher,
+    type CatalogVisibility,
     type ContentChartRenderer,
     type ContentSchemaValidator,
     type ContentSqlApproval,
@@ -30,6 +31,8 @@ import {
     type OrchestratorEvent,
     type OrchestratorOutcome,
     type RawSqlGuardrails,
+    type RuntimeOverrides,
+    type RuntimePinnedContext,
     type SkillStore,
     type ThreadStore,
 } from '@lightdash/agent-bi';
@@ -50,6 +53,7 @@ import type { Request } from 'express';
 import { isDeepStrictEqual } from 'node:util';
 import type { AgentBiModel } from '../models/AgentBiModel';
 import type { ProjectModel } from '../models/ProjectModel/ProjectModel';
+import { syncAgentBiCatalogIndex } from './AgentBiCatalogIndex';
 import { BaseService } from './BaseService';
 
 const toValidator = (validate: ValidateFunction): ContentSchemaValidator => ({
@@ -108,7 +112,10 @@ const dryRunRenderer: ContentChartRenderer = {
 export class AgentBiService extends BaseService {
     private readonly agentBiModel: AgentBiModel;
 
-    private readonly projectModel: Pick<ProjectModel, 'get'>;
+    private readonly projectModel: Pick<
+        ProjectModel,
+        'get' | 'findExploresFromCache'
+    >;
 
     private readonly siteUrl: string;
 
@@ -120,7 +127,7 @@ export class AgentBiService extends BaseService {
         siteUrl,
     }: {
         agentBiModel: AgentBiModel;
-        projectModel: Pick<ProjectModel, 'get'>;
+        projectModel: Pick<ProjectModel, 'get' | 'findExploresFromCache'>;
         siteUrl: string;
     }) {
         super();
@@ -159,9 +166,10 @@ export class AgentBiService extends BaseService {
                 this.agentBiModel.query(text, params),
         };
         const catalogSearch: CatalogFieldSearcher = {
-            search: async (query, visibility, limit) => {
+            search: async (query, visibility, limit, projectUuid) => {
                 const { rows } = await this.agentBiModel.query(
-                    'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index',
+                    'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT 2000',
+                    [projectUuid],
                 );
                 const hits = searchCatalogDocuments(
                     rows.map(toCatalogDocument),
@@ -319,21 +327,34 @@ export class AgentBiService extends BaseService {
         projectUuid: string,
         query: string,
         limit = 8,
+        visibility: CatalogVisibility = { allowedExplores: new Set() },
     ): Promise<CatalogDocument[]> {
         const { rows } = await this.agentBiModel.query(
             'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT 2000',
             [projectUuid],
         );
         const documents = rows.map(toCatalogDocument);
-        const allowedExplores = new Set(
-            documents.map((document) => document.exploreName),
-        );
         return searchCatalogDocuments(
-            documents,
+            documents.filter((document) => document.fieldKind !== null),
             query,
-            { allowedExplores },
+            visibility,
             { limit },
         ).map((hit) => hit.document);
+    }
+
+    async getCatalogExploreNames(projectUuid: string): Promise<string[]> {
+        await syncAgentBiCatalogIndex({
+            agentBiModel: this.agentBiModel,
+            projectModel: this.projectModel,
+            projectUuid,
+        });
+        const { rows } = await this.agentBiModel.query(
+            'SELECT DISTINCT explore_name FROM agent_ext.catalog_index WHERE project_uuid = $1 AND explore_name <> $2 ORDER BY explore_name',
+            [projectUuid, ''],
+        );
+        return rows
+            .map((row) => row.explore_name)
+            .filter((name): name is string => typeof name === 'string');
     }
 
     buildLlmClient(): LlmChatClient {
@@ -355,14 +376,18 @@ export class AgentBiService extends BaseService {
             requesterUuid: string;
             isOrgAdmin?: boolean;
         };
+        authorizeContext?: () => Promise<void>;
         headers?: Record<string, string>;
+        getCatalogVisibility?: () => Promise<CatalogVisibility>;
         llm?: LlmChatClient;
         maxTurns?: number;
         model?: string;
         onEvent: (event: OrchestratorEvent) => void;
+        pinnedContext?: RuntimePinnedContext | null;
         principal: AgentPrincipal;
         projectUuid: string;
         resumeApproved?: { approvalUuid: string; input: unknown; tool: string };
+        runtimeOverrides?: RuntimeOverrides | null;
         threadUuid: string;
         userText?: string;
     }): Promise<OrchestratorOutcome & { threadUuid: string }> {
@@ -371,11 +396,19 @@ export class AgentBiService extends BaseService {
             organizationUuid: input.access.organizationUuid,
             requesterUuid: input.access.requesterUuid,
         };
+        await input.authorizeContext?.();
         const store = this.getThreadStore();
         const thread = await store.getThread(input.threadUuid, access);
-        if (thread === null) {
+        if (thread === null || thread.projectUuid !== input.projectUuid) {
             throw new ForbiddenError();
         }
+        const context =
+            input.pinnedContext == null && input.runtimeOverrides == null
+                ? null
+                : {
+                      pinnedContext: input.pinnedContext ?? null,
+                      runtimeOverrides: input.runtimeOverrides ?? null,
+                  };
         if (input.resumeApproved !== undefined) {
             const recorded = await store.getMessage(
                 input.resumeApproved.approvalUuid,
@@ -393,6 +426,7 @@ export class AgentBiService extends BaseService {
                 recordedRequest === null ||
                 recordedRequest.threadUuid !== thread.threadUuid ||
                 recordedRequest.status !== 'approved' ||
+                !isDeepStrictEqual(recordedRequest.context, context) ||
                 recordedRequest.tool !== input.resumeApproved.tool ||
                 !isDeepStrictEqual(
                     recordedRequest.input ?? null,
@@ -450,14 +484,34 @@ export class AgentBiService extends BaseService {
                     : JSON.stringify(skill.manifest ?? {}),
             slug: skill.slug,
         }));
-        const catalogMatches = await this.searchCatalogForProject(
-            input.projectUuid,
+        const catalogQuery =
             input.userText ??
-                (input.resumeApproved === undefined
-                    ? ''
-                    : JSON.stringify(input.resumeApproved.input ?? null)),
-            8,
-        );
+            (input.resumeApproved === undefined
+                ? ''
+                : JSON.stringify(input.resumeApproved.input ?? null));
+        const { getCatalogVisibility } = input;
+        const getCatalogContext = getCatalogVisibility
+            ? async () => {
+                  const visibility = await getCatalogVisibility();
+                  return {
+                      catalogMatches: await this.searchCatalogForProject(
+                          input.projectUuid,
+                          catalogQuery,
+                          8,
+                          visibility,
+                      ),
+                      visibility,
+                  };
+              }
+            : undefined;
+        const catalogMatches = getCatalogContext
+            ? []
+            : await this.searchCatalogForProject(
+                  input.projectUuid,
+                  catalogQuery,
+                  8,
+                  { allowedExplores: new Set() },
+              );
         const catalog = createToolCatalog(
             this.buildToolDeps(input.headers ?? {}),
         );
@@ -466,6 +520,7 @@ export class AgentBiService extends BaseService {
                 requestApproval: (tool, toolInput) =>
                     requestApproval(store, {
                         access,
+                        context,
                         input: toolInput,
                         threadUuid: thread.threadUuid,
                         tool,
@@ -473,22 +528,24 @@ export class AgentBiService extends BaseService {
                         approvalUuid: approval.approvalUuid,
                     })),
             },
+            authorizeContext: input.authorizeContext,
             catalogMatches,
             history,
             llm: input.llm ?? this.buildLlmClient(),
             maxTurns: input.maxTurns,
             model: input.model ?? process.env.AGENT_LLM_MODEL ?? 'default',
-            pinnedContext: null,
+            pinnedContext: input.pinnedContext ?? null,
             policyToggles: defaultCapabilityToggles(),
             principal: input.principal,
             projectUuid: input.projectUuid,
             resumeApproved: input.resumeApproved ?? null,
-            runtimeOverrides: null,
+            runtimeOverrides: input.runtimeOverrides ?? null,
             skills,
             tools: {
-                execute: (tool, toolInput, principal) =>
-                    catalog.execute(tool, toolInput, principal),
+                execute: (tool, toolInput, principal, options) =>
+                    catalog.execute(tool, toolInput, principal, options),
             },
+            getCatalogContext,
             userText: input.userText ?? '',
             onEvent: input.onEvent,
         });

@@ -1,14 +1,18 @@
 // Slice 3: contextual drawer. Attach live dashboard context as
 // pinnedContext + runtimeOverrides to the next turn.
+import {
+    type DashboardFilters,
+    type ParametersValuesMap,
+} from '@lightdash/common';
 import { Drawer, Stack, Text } from '@mantine/core';
 import type { FC } from 'react';
 
 export type AgentBiDrawerContext = {
     activeTab?: string;
-    dashboardFilters?: Array<{ fieldId: string; value: unknown }>;
+    dashboardFilters?: DashboardFilters;
     dashboardSlug?: string;
     dateZoom?: string;
-    parameters?: Record<string, string>;
+    parameters?: ParametersValuesMap;
 };
 
 type Props = {
@@ -28,11 +32,21 @@ const rowsOf = (context: AgentBiDrawerContext): Array<[string, string]> => {
     if (context.dateZoom !== undefined) {
         rows.push(['Date zoom', context.dateZoom]);
     }
-    for (const filter of context.dashboardFilters ?? []) {
-        rows.push([`Filter ${filter.fieldId}`, String(filter.value)]);
+    const filters = context.dashboardFilters;
+    for (const filter of filters
+        ? [
+              ...filters.dimensions,
+              ...filters.metrics,
+              ...filters.tableCalculations,
+          ]
+        : []) {
+        rows.push([
+            `Filter ${filter.target.fieldId}`,
+            [filter.operator, ...(filter.values ?? []).map(String)].join(' '),
+        ]);
     }
     for (const [key, value] of Object.entries(context.parameters ?? {})) {
-        rows.push([`Parameter ${key}`, value]);
+        rows.push([`Parameter ${key}`, String(value)]);
     }
     return rows;
 };

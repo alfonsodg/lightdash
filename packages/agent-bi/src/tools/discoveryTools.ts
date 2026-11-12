@@ -188,6 +188,7 @@ export interface CatalogFieldSearcher {
         query: string,
         visibility: CatalogVisibility,
         limit: number,
+        projectUuid: string,
     ): Promise<CatalogSearchHit[]> | CatalogSearchHit[];
 }
 
@@ -649,6 +650,7 @@ export const createDiscoveryTools = (deps: DiscoveryToolDeps) => {
                         input.query,
                         visibility,
                         input.limit,
+                        input.projectUuid,
                     );
                     const scoped =
                         input.exploreName === undefined

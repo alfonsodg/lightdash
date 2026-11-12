@@ -57,6 +57,30 @@ const setup = () => {
 };
 
 describe('approval gate', () => {
+    it('retains the view context when a request is decided', async () => {
+        const context = {
+            pinnedContext: { kind: 'dashboard', slug: 'revenue' },
+            runtimeOverrides: { parameters: { currency: 'EUR' } },
+        };
+        let content = '';
+        const message = () => ({
+            content, createdAt: '2026-01-02T03:05:00.000Z', messageUuid: APPROVAL,
+            role: 'assistant' as const, threadUuid: THREAD,
+        });
+        const store: ApprovalMessageStore = {
+            createMessage: async (input) => { content = input.content; return message(); },
+            getMessage: async () => message(),
+            updateMessageContent: async (_uuid, next) => { content = next; return message(); },
+        };
+        const request = { access: access(USER), context, input: { sql: 'SELECT 1' }, threadUuid: THREAD, tool: 'run_sql' };
+        await requestApproval(store, request);
+        const resolved = await resolveApproval(store, {
+            access: access(USER), approvalUuid: APPROVAL, decision: 'approved',
+        });
+        expect(resolved).toMatchObject({ context });
+        expect(JSON.parse(content)).toMatchObject({ context });
+    });
+
     it('requests approval with a pending assistant message', async () => {
         const { queries, queued, store } = setup();
         queued.push([threadRow()]);

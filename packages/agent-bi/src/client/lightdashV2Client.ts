@@ -79,11 +79,12 @@ export interface LightdashV2ClientOptions {
 
 export interface V2MetricQueryBody {
     exploreName: string;
-    dimensions?: string[];
-    metrics?: string[];
-    filters?: Record<string, unknown>;
-    sorts?: Array<{ fieldId: string; descending?: boolean | null }>;
-    limit?: number | null;
+    dimensions: string[];
+    metrics: string[];
+    filters: Record<string, unknown>;
+    sorts: Array<{ fieldId: string; descending?: boolean | null }>;
+    limit: number;
+    tableCalculations: [];
     timezone?: string | null;
 }
 

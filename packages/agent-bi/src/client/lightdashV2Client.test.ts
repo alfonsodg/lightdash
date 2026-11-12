@@ -109,6 +109,10 @@ describe('execute', () => {
             exploreName: 'orders',
             dimensions: ['orders_status'],
             metrics: ['orders_total'],
+            filters: {},
+            sorts: [],
+            limit: 100,
+            tableCalculations: [],
         });
         expect(result).toEqual({ queryUuid: QUERY_UUID });
         expect(recorded).toHaveLength(1);
@@ -122,6 +126,10 @@ describe('execute', () => {
                 exploreName: 'orders',
                 dimensions: ['orders_status'],
                 metrics: ['orders_total'],
+                filters: {},
+                sorts: [],
+                limit: 100,
+                tableCalculations: [],
             },
         });
     });
@@ -224,7 +232,15 @@ describe('poll', () => {
         ]);
         const page = await client.runMetricQuery(
             PROJECT_UUID,
-            { exploreName: 'orders' },
+            {
+                exploreName: 'orders',
+                dimensions: [],
+                metrics: ['orders_total'],
+                filters: {},
+                sorts: [],
+                limit: 100,
+                tableCalculations: [],
+            },
             { pageSize: 10 },
         );
         expect(page.status).toBe('ready');
@@ -365,6 +381,12 @@ describe('http errors', () => {
             const failure = await client
                 .executeMetricQuery(PROJECT_UUID, {
                     exploreName: 'orders',
+                    dimensions: [],
+                    metrics: ['orders_total'],
+                    filters: {},
+                    sorts: [],
+                    limit: 100,
+                    tableCalculations: [],
                 })
                 .then(
                     () => null,

@@ -12,6 +12,39 @@ const encode = (text: string): ReadableStream<Uint8Array> => {
 };
 
 describe('streamThreadTurn', () => {
+    it('sends the current dashboard context with the prompt', async () => {
+        const fetchMock = vi.fn(async () => ({ ok: true, body: encode('') }));
+        vi.stubGlobal('fetch', fetchMock);
+        const pinnedContext = { kind: 'dashboard' as const, slug: 'revenue' };
+        const runtimeOverrides = {
+            activeTab: 'Overview',
+            filters: { dimensions: [{ fieldId: 'region', values: ['EU'] }] },
+            parameters: { currency: 'EUR' },
+        };
+
+        await streamThreadTurn(
+            {
+                pinnedContext,
+                projectUuid: 'p',
+                runtimeOverrides,
+                threadUuid: 't',
+                userText: 'What changed?',
+            },
+            () => {},
+        );
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+                body: JSON.stringify({
+                    pinnedContext,
+                    runtimeOverrides,
+                    userText: 'What changed?',
+                }),
+            }),
+        );
+    });
+
     it('parses SSE events from the turn endpoint', async () => {
         const body = encode(
             'event: text_delta\ndata: {"text":"Hel"}\n\n' +

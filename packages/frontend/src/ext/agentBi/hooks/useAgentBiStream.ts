@@ -10,13 +10,20 @@ export type AgentBiStreamEvent =
     | { data: unknown; type: 'done' }
     | { data: unknown; type: 'error' };
 
-type StreamInput = {
+export type StreamInput = {
+    pinnedContext?: { kind: 'chart' | 'dashboard'; slug: string } | null;
     projectUuid: string;
     resumeApproved?: {
         approvalUuid: string;
         input: unknown;
         tool: string;
     };
+    runtimeOverrides?: {
+        activeTab?: string;
+        dateZoom?: string;
+        filters?: Record<string, unknown>;
+        parameters?: Record<string, unknown>;
+    } | null;
     threadUuid: string;
     userText?: string;
 };
@@ -66,7 +73,9 @@ export const streamThreadTurn = async (
         `/api/ext/v1/projects/${input.projectUuid}/threads/${input.threadUuid}/messages/stream`,
         {
             body: JSON.stringify({
+                pinnedContext: input.pinnedContext,
                 resumeApproved: input.resumeApproved,
+                runtimeOverrides: input.runtimeOverrides,
                 userText: input.userText,
             }),
             headers: { 'content-type': 'application/json' },

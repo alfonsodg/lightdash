@@ -145,6 +145,11 @@ describe('run_metric_query', () => {
         expect(calls[0]?.body).toMatchObject({
             dimensions: ['orders_status'],
             exploreName: 'orders',
+            filters: {},
+            metrics: [],
+            sorts: [],
+            tableCalculations: [],
+            limit: 100,
         });
         expect(recordedAudits).toHaveLength(1);
         expect(auditMetadataOf(0)).toMatchObject({

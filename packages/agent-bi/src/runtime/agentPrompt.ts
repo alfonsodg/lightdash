@@ -81,9 +81,10 @@ export const buildSystemPrompt = (context: PromptContext): string => {
                 .join('\n')}\n</untrusted>`,
         );
     }
+    const liveContext: string[] = [];
     if (context.pinnedContext !== undefined && context.pinnedContext !== null) {
-        lines.push(
-            `Pinned context: ${context.pinnedContext.kind} "${context.pinnedContext.slug}". Match answers to what the viewer shows.`,
+        liveContext.push(
+            `Pinned context: ${context.pinnedContext.kind} "${context.pinnedContext.slug}".`,
         );
     }
     const overrides = context.runtimeOverrides;
@@ -102,8 +103,14 @@ export const buildSystemPrompt = (context: PromptContext): string => {
             parts.push(`parameters=${JSON.stringify(overrides.parameters)}`);
         }
         if (parts.length > 0) {
-            lines.push(`Live view overrides: ${parts.join(', ')}.`);
+            liveContext.push(`Live view overrides: ${parts.join(', ')}.`);
         }
+    }
+    if (liveContext.length > 0) {
+        lines.push('Use the live view context to match what the viewer sees.');
+        lines.push(
+            `<untrusted source="live-context">\n${escapeUntrusted(liveContext.join('\n'))}\n</untrusted>`,
+        );
     }
     return lines.join('\n\n');
 };

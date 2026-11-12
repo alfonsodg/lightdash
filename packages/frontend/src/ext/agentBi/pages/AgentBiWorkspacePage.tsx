@@ -6,29 +6,41 @@ import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
 import InlineErrorState from '../../../components/common/InlineErrorState';
 import { decideApproval } from '../api';
 import AgentBiApprovalCard from '../components/AgentBiApprovalCard';
-import AgentBiContextualDrawer from '../components/AgentBiContextualDrawer';
+import AgentBiContextualDrawer, {
+    type AgentBiDrawerContext,
+} from '../components/AgentBiContextualDrawer';
+import AgentBiQueryArtifact from '../components/AgentBiQueryArtifact';
+import {
+    parseAgentBiQueryPreview,
+    type AgentBiQueryPreview,
+} from '../components/agentBiQueryArtifact';
 import ProjectSkillsModal from '../components/ProjectSkillsModal';
-import { useAgentBiDashboardContext } from '../hooks/useAgentBiDashboardContext';
 import { useAgentBiMessages } from '../hooks/useAgentBiMessages';
 import {
     streamThreadTurn,
     type AgentBiStreamEvent,
+    type StreamInput,
 } from '../hooks/useAgentBiStream';
 import { useAgentBiThreads } from '../hooks/useAgentBiThreads';
 
 type PendingApproval = {
     approvalUuid: string;
+    context: TurnContext;
     input: unknown;
     tool: string;
 };
 
-type ChatLine = {
-    id: string;
-    role: string;
-    text: string;
+type TurnContext = Pick<StreamInput, 'pinnedContext' | 'runtimeOverrides'>;
+
+type ChatLine =
+    | { id: string; kind: 'message'; role: string; text: string }
+    | { id: string; kind: 'query-artifact'; preview: AgentBiQueryPreview };
+
+type Props = {
+    dashboardContext?: AgentBiDrawerContext | null;
 };
 
-const AgentBiWorkspacePage: FC = () => {
+const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const { projectUuid = '' } = useParams();
     const {
         data: threads,
@@ -48,8 +60,6 @@ const AgentBiWorkspacePage: FC = () => {
     const [streaming, setStreaming] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const dashboardContext = useAgentBiDashboardContext();
-
     const activeThread = selectedThread ?? threads?.[0]?.threadUuid ?? null;
 
     const handleCreate = async () => {
@@ -65,11 +75,11 @@ const AgentBiWorkspacePage: FC = () => {
     const appendLine = (role: string, text: string) => {
         setLines((current) => [
             ...current,
-            { id: `line-${current.length}`, role, text },
+            { id: `line-${current.length}`, kind: 'message', role, text },
         ]);
     };
 
-    const handleEvent = (event: AgentBiStreamEvent) => {
+    const handleEvent = (event: AgentBiStreamEvent, context: TurnContext) => {
         if (event.type === 'text_delta') {
             const text =
                 typeof event.data === 'object' &&
@@ -86,9 +96,26 @@ const AgentBiWorkspacePage: FC = () => {
             };
             setPending({
                 approvalUuid: String(data.approvalUuid ?? ''),
+                context,
                 input: data.input ?? null,
                 tool: String(data.tool ?? 'run_sql'),
             });
+        } else if (event.type === 'chart_artifact') {
+            const data =
+                typeof event.data === 'object' && event.data !== null
+                    ? (event.data as Record<string, unknown>)
+                    : null;
+            const preview = parseAgentBiQueryPreview(data?.preview);
+            if (preview !== null) {
+                setLines((current) => [
+                    ...current,
+                    {
+                        id: `line-${current.length}`,
+                        kind: 'query-artifact',
+                        preview,
+                    },
+                ]);
+            }
         } else if (event.type === 'error') {
             appendLine('error', 'The turn failed.');
         }
@@ -99,13 +126,34 @@ const AgentBiWorkspacePage: FC = () => {
             return;
         }
         const text = draft.trim();
+        const context: TurnContext = dashboardContext?.dashboardSlug
+            ? {
+                  pinnedContext: {
+                      kind: 'dashboard',
+                      slug: dashboardContext.dashboardSlug,
+                  },
+                  runtimeOverrides: {
+                      activeTab: dashboardContext.activeTab,
+                      dateZoom: dashboardContext.dateZoom,
+                      filters: dashboardContext.dashboardFilters
+                          ? { ...dashboardContext.dashboardFilters }
+                          : undefined,
+                      parameters: dashboardContext.parameters,
+                  },
+              }
+            : {};
         setDraft('');
         setStreaming(true);
         appendLine('user', text);
         try {
             await streamThreadTurn(
-                { projectUuid, threadUuid: activeThread, userText: text },
-                handleEvent,
+                {
+                    projectUuid,
+                    threadUuid: activeThread,
+                    userText: text,
+                    ...context,
+                },
+                (event) => handleEvent(event, context),
             );
         } finally {
             setStreaming(false);
@@ -130,11 +178,15 @@ const AgentBiWorkspacePage: FC = () => {
                 await streamThreadTurn(
                     {
                         projectUuid,
-                        resumeApproved: approved,
+                        resumeApproved: {
+                            approvalUuid: approved.approvalUuid,
+                            input: approved.input,
+                            tool: approved.tool,
+                        },
                         threadUuid: activeThread,
-                        userText: '',
+                        ...approved.context,
                     },
-                    handleEvent,
+                    (event) => handleEvent(event, approved.context),
                 );
             } finally {
                 setStreaming(false);
@@ -217,14 +269,21 @@ const AgentBiWorkspacePage: FC = () => {
                         ))}
                     </Stack>
                 ) : null}
-                {lines.map((line) => (
-                    <Paper key={line.id} p="sm" withBorder>
-                        <Text fz="xs" c="dimmed">
-                            {line.role}
-                        </Text>
-                        <Text fz="sm">{line.text}</Text>
-                    </Paper>
-                ))}
+                {lines.map((line) =>
+                    line.kind === 'query-artifact' ? (
+                        <AgentBiQueryArtifact
+                            key={line.id}
+                            preview={line.preview}
+                        />
+                    ) : (
+                        <Paper key={line.id} p="sm" withBorder>
+                            <Text fz="xs" c="dimmed">
+                                {line.role}
+                            </Text>
+                            <Text fz="sm">{line.text}</Text>
+                        </Paper>
+                    ),
+                )}
                 {pending !== null ? (
                     <AgentBiApprovalCard
                         approvalUuid={pending.approvalUuid}

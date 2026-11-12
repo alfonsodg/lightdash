@@ -1,10 +1,11 @@
+import { AuthorizationError, ForbiddenError } from '@lightdash/common';
 // Slice 3 (TDD red): threads HTTP API on /api/ext/v1/projects/:projectUuid/threads.
 // Live loopback through real HTTP; fake AgentBiService (no database, no LLM).
 import express, { type ErrorRequestHandler } from 'express';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { defaultSessionUser } from '../auth/account/account.mock';
+import { buildAccount, defaultSessionUser } from '../auth/account/account.mock';
 import { createThreadsExtRouter } from './threadsExtRouter';
 
 vi.mock('../controllers/authentication', async (importOriginal) => {
@@ -43,6 +44,9 @@ const godMode = () => ({
 });
 
 const startApp = (options?: {
+    account?: unknown;
+    dashboardService?: Record<string, unknown>;
+    projectService?: Record<string, unknown>;
     service?: Record<string, unknown>;
     user?: typeof defaultSessionUser | null;
 }) => {
@@ -52,8 +56,13 @@ const startApp = (options?: {
         if (options?.user !== undefined && options?.user !== null) {
             req.user = options.user;
         }
+        if (options?.account !== undefined) {
+            (req as unknown as { account: unknown }).account = options.account;
+        }
         req.services = {
             getAgentBiService: () => options?.service ?? {},
+            getDashboardService: () => options?.dashboardService ?? {},
+            getProjectService: () => options?.projectService ?? {},
             getFeatureFlagService: () => ({
                 get: async () => ({ enabled: true }),
             }),
@@ -101,6 +110,174 @@ describe('threadsExtRouter auth contract', () => {
 });
 
 describe('threadsExtRouter threads', () => {
+    it('builds catalog visibility from the caller-authorized explore fields', async () => {
+        const denied = new AuthorizationError(
+            "You don't have authorization to access this explore",
+        );
+        const getExplore = vi.fn(
+            async (_account: unknown, _project: string, name: string) => {
+                if (name === 'private') throw denied;
+                return {
+                    tables: {
+                        orders: {
+                            dimensions: {
+                                hidden_field: { hidden: true },
+                                status: { hidden: false },
+                            },
+                            metrics: { revenue: { hidden: false } },
+                            name: 'orders',
+                        },
+                    },
+                };
+            },
+        );
+        const getCatalogExploreNames = vi.fn(async () => ['orders', 'private']);
+        const runThreadTurn = vi.fn(
+            async (input: {
+                getCatalogVisibility: () => Promise<{
+                    allowedExplores: Set<string>;
+                    allowedFieldsByExplore: Map<string, Set<string>>;
+                }>;
+                onEvent: (event: { type: 'done' }) => void;
+            }) => {
+                const visibility = await input.getCatalogVisibility();
+                expect(visibility.allowedExplores).toEqual(new Set(['orders']));
+                expect(visibility.allowedFieldsByExplore.get('orders')).toEqual(
+                    new Set(['orders.status', 'orders.revenue']),
+                );
+                input.onEvent({ type: 'done' });
+            },
+        );
+        const server = await startApp({
+            account: buildAccount(),
+            projectService: { getExplore },
+            service: {
+                getCatalogExploreNames,
+                isProjectAuditor: () => false,
+                requireProjectViewer: async () => ({
+                    organizationUuid: '11111111-1111-4111-8111-111111111111',
+                }),
+                runThreadTurn,
+            },
+            user: { ...godMode() },
+        });
+        try {
+            const response = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages/stream`,
+                {
+                    body: JSON.stringify({ userText: 'Find order status' }),
+                    headers: { 'content-type': 'application/json' },
+                    method: 'POST',
+                },
+            );
+            const responseText = await response.text();
+            expect(response.status).toBe(200);
+            expect(responseText).not.toContain('event: error');
+            expect(getExplore).toHaveBeenCalledTimes(2);
+            expect(runThreadTurn).toHaveBeenCalledOnce();
+        } finally {
+            await stopApp(server);
+        }
+    });
+
+    it('authorizes a pinned dashboard before forwarding the live context', async () => {
+        const getByIdOrSlug = vi.fn(async () => ({
+            projectUuid: PROJECT_UUID,
+            slug: 'revenue',
+        }));
+        const runThreadTurn = vi.fn(
+            async (input: { onEvent: (event: { type: 'done' }) => void }) =>
+                input.onEvent({ type: 'done' }),
+        );
+        const server = await startApp({
+            dashboardService: { getByIdOrSlug },
+            service: {
+                isProjectAuditor: () => false,
+                requireProjectViewer: async () => ({
+                    organizationUuid: '11111111-1111-4111-8111-111111111111',
+                }),
+                runThreadTurn,
+            },
+            user: { ...godMode() },
+        });
+        const pinnedContext = { kind: 'dashboard', slug: 'revenue' };
+        const runtimeOverrides = { parameters: { currency: 'EUR' } };
+        try {
+            const response = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages/stream`,
+                {
+                    body: JSON.stringify({
+                        pinnedContext,
+                        runtimeOverrides,
+                        userText: 'What changed?',
+                    }),
+                    headers: {
+                        'content-type': 'application/json',
+                        cookie: 'session=test-session',
+                    },
+                    method: 'POST',
+                },
+            );
+            expect(response.status).toBe(200);
+            await response.text();
+            expect(getByIdOrSlug).toHaveBeenCalledWith(
+                expect.objectContaining({ userUuid: godMode().userUuid }),
+                'revenue',
+                { projectUuid: PROJECT_UUID },
+            );
+            expect(runThreadTurn).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    headers: { Cookie: 'session=test-session' },
+                    pinnedContext,
+                    runtimeOverrides,
+                }),
+            );
+        } finally {
+            await stopApp(server);
+        }
+    });
+
+    it('does not start a turn when pinned dashboard access is denied', async () => {
+        const forbidden = new Error('Forbidden');
+        (forbidden as { statusCode?: number }).statusCode = 403;
+        const runThreadTurn = vi.fn(
+            async (input: { onEvent: (event: { type: 'done' }) => void }) =>
+                input.onEvent({ type: 'done' }),
+        );
+        const server = await startApp({
+            dashboardService: {
+                getByIdOrSlug: async () => {
+                    throw forbidden;
+                },
+            },
+            service: {
+                isProjectAuditor: () => false,
+                requireProjectViewer: async () => ({
+                    organizationUuid: '11111111-1111-4111-8111-111111111111',
+                }),
+                runThreadTurn,
+            },
+            user: { ...godMode() },
+        });
+        try {
+            const response = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages/stream`,
+                {
+                    body: JSON.stringify({
+                        pinnedContext: { kind: 'dashboard', slug: 'revenue' },
+                        userText: 'What changed?',
+                    }),
+                    headers: { 'content-type': 'application/json' },
+                    method: 'POST',
+                },
+            );
+            expect(response.status).toBe(403);
+            expect(runThreadTurn).not.toHaveBeenCalled();
+        } finally {
+            await stopApp(server);
+        }
+    });
+
     it('lists threads for an authorized user', async () => {
         const listThreads = vi.fn(async () => [threadRow()]);
         const server = await startApp({
