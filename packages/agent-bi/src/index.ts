@@ -64,3 +64,5 @@ export {
 export * from './catalog';
 export * from './client';
 export * from './tools';
+export * from './content';
+export * from './export';

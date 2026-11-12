@@ -26,4 +26,11 @@ describe('package public surface', () => {
         expect(typeof publicSurface.createAgentTools).toBe('function');
         expect(Array.isArray(publicSurface.AGENT_TOOL_NAMES)).toBe(true);
     });
+
+    it('exposes the content and export APIs', () => {
+        expect(typeof publicSurface.createContentTools).toBe('function');
+        expect(typeof publicSurface.createExportTools).toBe('function');
+        expect(typeof publicSurface.createContentFetchClient).toBe('function');
+        expect(typeof publicSurface.createExportFetchClient).toBe('function');
+    });
 });
