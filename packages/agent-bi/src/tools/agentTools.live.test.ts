@@ -279,7 +279,10 @@ describe.skipIf(!hasDatabase)('agent tools live shape', () => {
     it('writes audit rows through the shared logger', async () => {
         const client = await db();
         await recordAuditEvent(
-            { query: (text: string) => client.query(text) },
+            {
+                query: (text: string, params?: unknown[]) =>
+                    client.query(text, params).then(() => undefined),
+            },
             {
                 capability: 'metric_query',
                 principal: {
