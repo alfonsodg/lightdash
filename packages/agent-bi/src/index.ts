@@ -61,3 +61,6 @@ export {
     type AuditVerdictSource,
     type RecordAuditEventInput,
 } from './audit';
+export * from './catalog';
+export * from './client';
+export * from './tools';

@@ -19,4 +19,11 @@ describe('package public surface', () => {
         expect(typeof publicSurface.evaluateSqlGuard).toBe('function');
         expect(typeof publicSurface.recordAuditEvent).toBe('function');
     });
+
+    it('exposes the catalog, client and tools APIs', () => {
+        expect(typeof publicSurface.buildCatalogDocuments).toBe('function');
+        expect(typeof publicSurface.createLightdashV2Client).toBe('function');
+        expect(typeof publicSurface.createAgentTools).toBe('function');
+        expect(Array.isArray(publicSurface.AGENT_TOOL_NAMES)).toBe(true);
+    });
 });
