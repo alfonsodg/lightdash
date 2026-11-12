@@ -1,9 +1,7 @@
 name: Agent BI validation image
 
 on:
-  push:
-    tags:
-      - 'feat-9-*'
+  create:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +16,10 @@ env:
 jobs:
   validate:
     name: Validate issue #9 changes
-    if: github.repository == 'alfonsodg/lightdash'
+    if: >-
+      github.repository == 'alfonsodg/lightdash' &&
+      github.ref_type == 'tag' &&
+      startsWith(github.ref_name, 'feat-9-')
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 90
     env:
@@ -98,7 +99,10 @@ jobs:
 
   build-scan-publish:
     name: Build, scan and publish validation image
-    if: github.repository == 'alfonsodg/lightdash'
+    if: >-
+      github.repository == 'alfonsodg/lightdash' &&
+      github.ref_type == 'tag' &&
+      startsWith(github.ref_name, 'feat-9-')
     needs: validate
     runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 90
