@@ -45,6 +45,7 @@ const BASE_ROLE_SCOPES = {
         'view:MetricsTree',
         'view:SpotlightTableConfig',
         'view:AiAgentThread@self',
+        'view:AiAgentSkill',
         'view:OrganizationDesign',
 
         // Embedded analytics controls
@@ -128,6 +129,7 @@ const BASE_ROLE_SCOPES = {
         'manage:AiAgentThread@self', // User's own threads
         'view:ContentAsCode',
         'create:ContentAsCode',
+        'manage:AiAgentSkill',
         'create:DataApp',
     ],
 

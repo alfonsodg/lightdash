@@ -26,6 +26,7 @@ import { ModelRepository } from '../models/ModelRepository';
 import PrometheusMetrics from '../prometheus/PrometheusMetrics';
 import type { UtilRepository } from '../utils/UtilRepository';
 import { AdminNotificationService } from './AdminNotificationService/AdminNotificationService';
+import { AgentBiService } from './AgentBiService';
 import { AgentConnectionApprovalService } from './AgentConnectionApprovalService/AgentConnectionApprovalService';
 import { AgentPermissionService } from './AgentPermissionService/AgentPermissionService';
 import { areOrganizationGroupsAvailable } from './AgentPermissionService/groupsAvailable';
@@ -174,6 +175,7 @@ interface ServiceManifest {
     pinningService: PinningService;
     pivotTableService: PivotTableService;
     aiAccessService: AiAccessService;
+    agentBiService: AgentBiService;
     agentPermissionService: AgentPermissionService;
     agentConnectionGrantService: AgentConnectionGrantService;
     agentConnectionApprovalService: AgentConnectionApprovalService;
@@ -776,6 +778,18 @@ export class ServiceRepository
                     organizationSsoModel: this.models.getOrganizationSsoModel(),
                     managedSignInModel: this.models.getManagedSignInModel(),
                     getUserService: () => this.getUserService(),
+                }),
+        );
+    }
+
+    public getAgentBiService(): AgentBiService {
+        return this.getService(
+            'agentBiService',
+            () =>
+                new AgentBiService({
+                    agentBiModel: this.models.getAgentBiModel(),
+                    projectModel: this.models.getProjectModel(),
+                    siteUrl: this.context.lightdashConfig.siteUrl,
                 }),
         );
     }

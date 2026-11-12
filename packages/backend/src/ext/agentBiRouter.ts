@@ -9,8 +9,23 @@ import {
     listPreflightCapabilityNames,
     resolvePreflightPrincipal,
 } from './agentBiPreflight';
+import { createMcpExtRouter } from './mcpExtRouter';
+import { createSkillsExtRouter } from './skillsExtRouter';
+import { createThreadsExtRouter } from './threadsExtRouter';
 
 export const agentBiRouter: Router = express.Router({ mergeParams: true });
+
+agentBiRouter.use(
+    '/mcp',
+    createMcpExtRouter({
+        createMcpDeps: (req) =>
+            req.services.getAgentBiService().buildMcpServerDeps(req),
+    }),
+);
+
+agentBiRouter.use('/projects/:projectUuid/threads', createThreadsExtRouter());
+
+agentBiRouter.use('/projects/:projectUuid/skills', createSkillsExtRouter());
 
 // Health gate for the isolated analytics-agent extension. Authentication
 // runs first so unauthenticated callers get 401 before flag evaluation.
