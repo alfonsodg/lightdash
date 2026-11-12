@@ -1,0 +1,18 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-sm);
+}
+
+.title {
+    margin-bottom: 0;
+}
+
+.kpi {
+    align-items: center;
+}
+
+.chart {
+    height: 320px;
+    width: 100%;
+}
