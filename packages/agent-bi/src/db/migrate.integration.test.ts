@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { migrateDown, migrateUp } from './migrate';
+import { AGENT_EXT_MIGRATION_VERSION } from './schema';
 
 // Real PostgreSQL proof: needs pgvector/pgvector:pg15 and the `pg` driver.
 // Run where a database exists:
@@ -55,7 +56,7 @@ suite('agent_ext migrations on real PostgreSQL', () => {
             ]),
         );
         const ledger = await db.query(
-            `SELECT version FROM agent_ext.migrations WHERE version = '0001_agent_ext_init'`,
+            `SELECT version FROM agent_ext.migrations WHERE version = '${AGENT_EXT_MIGRATION_VERSION}'`,
         );
         expect(ledger.rows).toHaveLength(1);
         const vector = await db.query(
@@ -72,7 +73,7 @@ suite('agent_ext migrations on real PostgreSQL', () => {
         );
         expect(remaining).toEqual([]);
         const ledger = await db.query(
-            `SELECT version FROM agent_ext.migrations WHERE version = '0001_agent_ext_init'`,
+            `SELECT version FROM agent_ext.migrations WHERE version = '${AGENT_EXT_MIGRATION_VERSION}'`,
         );
         expect(ledger.rows).toHaveLength(0);
     });

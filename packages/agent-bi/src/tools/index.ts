@@ -20,6 +20,7 @@ import {
 export * from './agentToolTypes';
 export * from './discoveryTools';
 export * from './queryTools';
+export * from './toolCatalog';
 
 export const AGENT_TOOL_NAMES = [
     ...DISCOVERY_TOOL_NAMES,

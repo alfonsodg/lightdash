@@ -1,6 +1,6 @@
 export const AGENT_EXT_SCHEMA = 'agent_ext';
 
-export const AGENT_EXT_MIGRATION_VERSION = '0001_agent_ext_init';
+export const AGENT_EXT_MIGRATION_VERSION = '0003_agent_ext_project_scope';
 
 export const CATALOG_EMBEDDING_DIMENSIONS = 1536;
 

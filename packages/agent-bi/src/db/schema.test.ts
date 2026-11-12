@@ -37,6 +37,6 @@ describe('resolveSchemaName', () => {
                 'threads',
             ].sort(),
         );
-        expect(AGENT_EXT_MIGRATION_VERSION).toBe('0001_agent_ext_init');
+        expect(AGENT_EXT_MIGRATION_VERSION).toBe('0003_agent_ext_project_scope');
     });
 });

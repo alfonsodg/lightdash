@@ -41,6 +41,13 @@ describe('buildForwardStatements', () => {
         expect(sql).toContain('document tsvector');
         expect(sql).toContain('USING hnsw (embedding vector_cosine_ops)');
         expect(sql).toContain('USING gin (document)');
+        expect(sql).toContain('explore_name text');
+        expect(sql).toContain('table_name text');
+        expect(sql).toContain('field_name text');
+        expect(sql).toContain('field_kind text');
+        expect(sql).toContain(
+            'ADD COLUMN IF NOT EXISTS explore_name text',
+        );
     });
 
     it('links messages to threads with a cascade and an index', () => {
@@ -56,7 +63,7 @@ describe('buildForwardStatements', () => {
     it('records the migration in the isolated ledger', () => {
         const sql = joined(buildForwardStatements());
         expect(sql).toContain(
-            `INSERT INTO "agent_ext"."migrations" (version) VALUES ('0001_agent_ext_init') ON CONFLICT (version) DO NOTHING`,
+            `INSERT INTO "agent_ext"."migrations" (version) VALUES ('0003_agent_ext_project_scope') ON CONFLICT (version) DO NOTHING`,
         );
     });
 
@@ -93,7 +100,7 @@ describe('buildRollbackStatements', () => {
     it('clears the ledger row and keeps the ledger table', () => {
         const sql = joined(buildRollbackStatements());
         expect(sql).toContain(
-            `DELETE FROM "agent_ext"."migrations" WHERE version = '0001_agent_ext_init'`,
+            `DELETE FROM "agent_ext"."migrations" WHERE version = '0003_agent_ext_project_scope'`,
         );
         expect(sql).not.toContain(
             'DROP TABLE IF EXISTS "agent_ext"."migrations"',

@@ -46,7 +46,7 @@ export type QueryToolName = (typeof QUERY_TOOL_NAMES)[number];
 
 type QueryCapability = 'metric_query' | 'compose_query' | 'raw_sql';
 
-const TOOL_CAPABILITIES: Record<QueryToolName, QueryCapability> = {
+export const TOOL_CAPABILITIES: Record<QueryToolName, QueryCapability> = {
     run_compose_pipeline: 'compose_query',
     run_metric_query: 'metric_query',
     run_saved_chart: 'metric_query',

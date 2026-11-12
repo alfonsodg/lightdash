@@ -46,7 +46,7 @@ export const DISCOVERY_TOOL_NAMES = [
 
 export type DiscoveryToolName = (typeof DISCOVERY_TOOL_NAMES)[number];
 
-const DISCOVER_CAPABILITY = 'discover';
+export const DISCOVER_CAPABILITY = 'discover';
 
 const MAX_NAME_CHARS = 256;
 const MAX_SEARCH_CHARS = 500;

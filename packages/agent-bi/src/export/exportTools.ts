@@ -44,7 +44,7 @@ export const EXPORT_TOOL_NAMES = [
 
 export type ExportToolName = (typeof EXPORT_TOOL_NAMES)[number];
 
-const EXPORT_CAPABILITY = 'export';
+export const EXPORT_CAPABILITY = 'export';
 
 const MAX_NAME_CHARS = 256;
 const MAX_TEXT_CHARS = 2000;

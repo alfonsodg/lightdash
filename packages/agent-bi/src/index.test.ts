@@ -33,4 +33,26 @@ describe('package public surface', () => {
         expect(typeof publicSurface.createContentFetchClient).toBe('function');
         expect(typeof publicSurface.createExportFetchClient).toBe('function');
     });
+
+    it('exposes the MCP server API', () => {
+        expect(typeof publicSurface.createAgentBiMcpServer).toBe('function');
+    });
+
+    it('exposes the runtime orchestrator API', () => {
+        expect(typeof publicSurface.runAgentTurn).toBe('function');
+        expect(typeof publicSurface.buildSystemPrompt).toBe('function');
+        expect(typeof publicSurface.createOpenAiChatClient).toBe('function');
+    });
+
+    it('exposes the runtime thread, skill and approval APIs', () => {
+        expect(typeof publicSurface.createThreadStore).toBe('function');
+        expect(typeof publicSurface.createSkillStore).toBe('function');
+        expect(typeof publicSurface.requestApproval).toBe('function');
+        expect(typeof publicSurface.resolveApproval).toBe('function');
+    });
+
+    it('exposes the stdio bridge API', () => {
+        expect(typeof publicSurface.resolveStdioConfig).toBe('function');
+        expect(typeof publicSurface.startStdioBridge).toBe('function');
+    });
 });

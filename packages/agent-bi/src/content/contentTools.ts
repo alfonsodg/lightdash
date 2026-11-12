@@ -56,7 +56,7 @@ export const CONTENT_TOOL_NAMES = [
 
 export type ContentToolName = (typeof CONTENT_TOOL_NAMES)[number];
 
-const CONTENT_CAPABILITY = 'content_write';
+export const CONTENT_CAPABILITY = 'content_write';
 
 const MAX_SLUG_CHARS = 256;
 const MAX_APPROVAL_TOKEN_CHARS = 1024;
