@@ -35,7 +35,7 @@ vi.unstubAllGlobals();
 const PROJECT_UUID = '22222222-2222-4222-8222-222222222222';
 
 const startApp = async (options?: {
-    createMcpDeps?: () => McpServerDeps;
+    createMcpDeps?: (req?: express.Request) => McpServerDeps;
     godMode?: boolean;
 }) => {
     const app = express();
@@ -333,6 +333,41 @@ describe('mcpExtRouter authenticated tools', () => {
             } finally {
                 await close();
             }
+        } finally {
+            await stopApp(server);
+        }
+    });
+
+    it('routes GET/DELETE Streamable HTTP and forwards Bearer/ApiKey credentials', async () => {
+        const seenHeaders: Array<string | undefined> = [];
+        const { createMcpDeps } = setupDeps();
+        const server = await startApp({
+            createMcpDeps: (req?: express.Request) => {
+                seenHeaders.push(req?.headers.authorization);
+                return createMcpDeps();
+            },
+            godMode: true,
+        });
+        const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        try {
+            const getRes = await fetch(`${base}/api/ext/v1/mcp`, {
+                headers: {
+                    Authorization: 'Bearer oauth-token-example',
+                },
+                method: 'GET',
+            });
+            expect(getRes.status).toBe(406);
+
+            const deleteRes = await fetch(`${base}/api/ext/v1/mcp`, {
+                headers: { Authorization: 'ApiKey ldpat_example' },
+                method: 'DELETE',
+            });
+            expect(deleteRes.status).toBe(200);
+
+            expect(seenHeaders).toEqual([
+                'Bearer oauth-token-example',
+                'ApiKey ldpat_example',
+            ]);
         } finally {
             await stopApp(server);
         }

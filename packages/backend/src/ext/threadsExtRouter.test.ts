@@ -369,4 +369,51 @@ describe('threadsExtRouter threads', () => {
             await stopApp(server);
         }
     });
+
+    it('denies cross-user thread reads, messages, and approvals with 403', async () => {
+        const { ThreadStoreError } = await import('@lightdash/agent-bi');
+        const denyOwnership = async () => {
+            throw new ThreadStoreError(
+                'FORBIDDEN',
+                'You do not have access to this thread.',
+            );
+        };
+        const server = await startApp({
+            service: {
+                getThreadStore: () => ({
+                    getThread: denyOwnership,
+                    listMessages: denyOwnership,
+                }),
+                resolveThreadApproval: denyOwnership,
+                isProjectAuditor: () => false,
+                requireProjectViewer: async () => ({
+                    organizationUuid: '11111111-1111-4111-8111-111111111111',
+                }),
+            },
+            user: { ...godMode() },
+        });
+        try {
+            const threadRes = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}`,
+            );
+            expect(threadRes.status).toBe(403);
+
+            const messagesRes = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages`,
+            );
+            expect(messagesRes.status).toBe(403);
+
+            const approvalRes = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/approvals/33333333-3333-4333-8333-333333333333`,
+                {
+                    body: JSON.stringify({ decision: 'approved' }),
+                    headers: { 'content-type': 'application/json' },
+                    method: 'POST',
+                },
+            );
+            expect(approvalRes.status).toBe(403);
+        } finally {
+            await stopApp(server);
+        }
+    });
 });

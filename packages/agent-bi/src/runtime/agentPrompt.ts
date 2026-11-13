@@ -67,7 +67,7 @@ export const buildSystemPrompt = (context: PromptContext): string => {
             `<untrusted source="project-skills">\n${context.skills
                 .map(
                     (skill) =>
-                        `## ${skill.slug}\n${escapeUntrusted(skill.content)}`,
+                        `## ${escapeUntrusted(skill.slug)}\n${escapeUntrusted(skill.content)}`,
                 )
                 .join('\n')}\n</untrusted>`,
         );
