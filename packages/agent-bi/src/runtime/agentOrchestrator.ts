@@ -111,7 +111,12 @@ export interface OrchestratorDeps {
 
 export type AgentToolDepsForOrchestrator = ToolCatalogAllDeps;
 
-const NEEDS_APPROVAL = new Set<string>(['run_sql']);
+const NEEDS_APPROVAL = new Set<string>([
+    'run_sql',
+    'upsert_chart_as_code',
+    'upsert_dashboard_as_code',
+    'upsert_sql_chart_as_code',
+]);
 
 const DEFAULT_MAX_TURNS = 8;
 

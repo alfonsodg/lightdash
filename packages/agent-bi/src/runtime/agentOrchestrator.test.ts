@@ -270,6 +270,70 @@ describe('runAgentTurn', () => {
         ]);
     });
 
+    it.each([
+        {
+            input: {
+                chart: { name: 'Orders', spaceSlug: 'sales' },
+                projectUuid: PROJECT_UUID,
+                slug: 'orders',
+            },
+            tool: 'upsert_chart_as_code',
+        },
+        {
+            input: {
+                dashboard: { name: 'Orders', spaceSlug: 'sales' },
+                projectUuid: PROJECT_UUID,
+                slug: 'orders',
+            },
+            tool: 'upsert_dashboard_as_code',
+        },
+        {
+            input: {
+                projectUuid: PROJECT_UUID,
+                slug: 'orders-sql',
+                sqlChart: { name: 'Orders' },
+            },
+            tool: 'upsert_sql_chart_as_code',
+        },
+    ])('suspends $tool for human confirmation', async ({ input, tool }) => {
+        const approvals: Array<{ input: unknown; tool: string }> = [];
+        const executed: Array<{ input: unknown; tool: string }> = [];
+        const { deps } = baseDeps(
+            [
+                toolResult('call_1', tool, JSON.stringify(input)),
+                textResult('The write completed.'),
+            ],
+            {
+                execute: async (calledTool: string, calledInput: unknown) => {
+                    executed.push({ input: calledInput, tool: calledTool });
+                    return { ok: true };
+                },
+            },
+        );
+        const outcome = await runAgentTurn({
+            ...deps,
+            approvals: {
+                requestApproval: async (
+                    approvedTool: string,
+                    approvedInput: unknown,
+                ) => {
+                    approvals.push({
+                        input: approvedInput,
+                        tool: approvedTool,
+                    });
+                    return { approvalUuid: 'approval-1' };
+                },
+            },
+            onEvent: () => {},
+            userText: 'Save this content change.',
+        });
+
+        expect(outcome.status).toBe('approval_required');
+        expect(outcome.approvalUuid).toBe('approval-1');
+        expect(approvals).toEqual([{ input, tool }]);
+        expect(executed).toEqual([]);
+    });
+
     it('refuses run_sql without an approval channel', async () => {
         const { deps } = baseDeps([
             toolResult('call_1', 'run_sql', '{"sql":"SELECT 1"}'),
@@ -309,10 +373,7 @@ describe('runAgentTurn', () => {
     });
 
     it('emits chart artifacts for content tool results', async () => {
-        const { deps } = baseDeps([
-            toolResult('call_1', 'upsert_chart_as_code', '{"slug":"s"}'),
-            textResult('Created.'),
-        ]);
+        const { deps } = baseDeps([textResult('Created.')]);
         const artifacts: unknown[] = [];
         await runAgentTurn({
             ...deps,
@@ -323,6 +384,11 @@ describe('runAgentTurn', () => {
             },
             tools: {
                 execute: async () => ({ slug: 's', uuid: 'c-1' }),
+            },
+            resumeApproved: {
+                approvalUuid: 'approval-1',
+                input: { slug: 's' },
+                tool: 'upsert_chart_as_code',
             },
             userText: 'Make a chart.',
         });
