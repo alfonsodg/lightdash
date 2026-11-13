@@ -11,9 +11,13 @@ verify() {
         entrypoint="/usr/local/bin/dbt${version}"
     fi
 
+    echo "Verifying dbt ${version}..."
     test -x "$python"
     test -x "$entrypoint"
-    "$entrypoint" --version >/dev/null
+    if ! version_out="$("$entrypoint" --version 2>&1)"; then
+        printf '%s\n' "$version_out" >&2
+        return 1
+    fi
     "$python" -m pip check
     "$python" - "$@" <<'PY'
 import importlib.util

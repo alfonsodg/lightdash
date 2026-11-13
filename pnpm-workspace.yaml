@@ -34,6 +34,32 @@ overrides:
   '@grpc/grpc-js': 1.14.7
   proxy-addr: 2.0.8
   serialize-javascript: 7.1.2
+  '@hono/node-server@<1.19.10': '>=1.19.10'
+  '@opentelemetry/propagator-jaeger@<2.9.0': '>=2.9.0'
+  'body-parser': '>=2.4.0'
+  'brace-expansion@<1.1.20': '>=1.1.20'
+  'brace-expansion@>=2.0.0 <2.1.6': '>=2.1.6'
+  'brace-expansion@>=5.0.0 <5.0.11': '>=5.0.11'
+  'browserslist@<4.28.7': '>=4.28.7'
+  'dompurify@<3.4.17': '>=3.4.17'
+  'fast-uri@<3.1.7': '>=3.1.7'
+  'follow-redirects@<1.16.2': '>=1.16.2'
+  'ip-address@<10.3.1': '>=10.3.1'
+  'js-cookie@<3.0.7': '>=3.0.7'
+  'js-yaml@<3.15.2': '>=3.15.2'
+  'js-yaml@>=4.0.0 <4.3.2': '>=4.3.2'
+  'markdown-it@<14.3.3': '>=14.3.3'
+  'minimatch@<3.1.4': '>=3.1.4'
+  'minimatch@>=5.0.0 <5.1.8': '>=5.1.8'
+  'minimatch@>=9.0.0 <9.0.7': '>=9.0.7'
+  'path-to-regexp@>=8.0.0 <8.4.0': '>=8.4.0'
+  'picomatch@<2.3.2': '>=2.3.2'
+  'source-map-js@<1.2.2': '>=1.2.2'
+  'thrift@<0.23.0': '>=0.23.0'
+  'toml@<5.0.1': '>=5.0.1'
+  'ws@<5.2.5': '>=5.2.5'
+  'ws@>=7.0.0 <7.5.11': '>=7.5.11'
+  'ws@>=8.0.0 <8.21.0': '>=8.21.0'
   handlebars: 4.7.10
   basic-ftp: 6.2.1
   'vite@>=7.0.0 <7.3.2': 7.3.7

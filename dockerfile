@@ -29,7 +29,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node"]
-RUN pnpm config set store-dir /pnpm/store
+RUN pnpm config set store-dir /pnpm/store \
+    && npm install -g npm@latest \
+    && npm cache clean --force \
+    && pip install --no-cache-dir --upgrade setuptools
 
 WORKDIR /usr/app
 
@@ -184,33 +187,43 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && /usr/local/dbt1.12/bin/pip install --no-deps "certifi>=2026.10.19" \
     && ln -s /usr/local/dbt1.12/bin/dbt /usr/local/bin/dbt1.12
 
+COPY --chmod=755 scripts/docker/patch-dbt-metadata.py /usr/local/bin/patch-dbt-metadata
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eu; \
     for version in 1.4 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do \
         python="/usr/local/dbt${version}/bin/python"; \
-        if "$python" -c 'import importlib.metadata as m; m.version("deepdiff")' >/dev/null 2>&1; then \
+        if "$python" -c "import importlib.metadata as m; m.version('boto3')" >/dev/null 2>&1; then \
+            "$python" -m pip install --upgrade 'boto3>=1.44.2'; \
+        fi; \
+        if "$python" -c "import importlib.metadata as m; m.version('deepdiff')" >/dev/null 2>&1; then \
             "$python" -m pip install --upgrade 'deepdiff==8.6.2'; \
         fi; \
-        if "$python" -c 'import importlib.metadata as m; m.version("Werkzeug")' >/dev/null 2>&1; then \
-            "$python" -m pip install --upgrade 'Werkzeug==3.1.9'; \
+        for spec in \
+            'cffi>=2.0.0' \
+            'Werkzeug>=3.1.9' \
+            'cryptography>=50.0.0' \
+            'filelock>=4.2.1' \
+            'jaraco.context>=6.1.0' \
+            'oauthlib>=4.0.1' \
+            'protobuf>=5.29.6' \
+            'pyOpenSSL>=26.0.0' \
+            'sqlparse>=0.6.0' \
+            'thrift>=0.24.0' \
+            'urllib3>=2.8.0' \
+            'wheel>=0.46.2' \
+            'setuptools>=80.9.0'; do \
+            pkg="${spec%%[>=<]*}"; \
+            if "$python" -c "import importlib.metadata as m; m.version('$pkg')" >/dev/null 2>&1; then \
+                "$python" -m pip install --upgrade --no-deps "$spec"; \
+            fi; \
+        done; \
+        if [ "$version" = 1.5 ] || [ "$version" = 1.6 ] || [ "$version" = 1.7 ] || [ "$version" = 1.8 ]; then \
+            "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
         fi; \
-    done; \
-    for version in 1.4 1.5; do \
-        metadata="$(find "/usr/local/dbt${version}/lib/python3.11/site-packages" -path '*/dbt_core-*.dist-info/METADATA' -print -quit)"; \
-        test -n "$metadata"; \
-        grep -qi '^Requires-Dist: werkzeug<3,>=1$' "$metadata"; \
-        sed -i 's/^Requires-Dist: werkzeug<3,>=1$/Requires-Dist: werkzeug<4,>=1/' "$metadata"; \
-    done; \
-    for version in 1.5 1.6 1.7 1.8; do \
-        python="/usr/local/dbt${version}/bin/python"; \
-        if [ "$version" = 1.5 ]; then \
-            "$python" -m pip install --upgrade 'boto3==1.44.2'; \
+        if [ "$version" = 1.6 ]; then \
+            "$python" -m pip install --upgrade --no-deps 'google-cloud-bigquery==3.25.0'; \
         fi; \
-        "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
-        metadata="$(find "/usr/local/dbt${version}/lib/python3.11/site-packages" -path '*/dbt_redshift-*.dist-info/METADATA' -print -quit)"; \
-        test -n "$metadata"; \
-        grep -q '^Requires-Dist: redshift-connector ' "$metadata"; \
-        sed -i 's/^Requires-Dist: redshift-connector .*/Requires-Dist: redshift-connector >=2.1.14,<2.2/' "$metadata"; \
+        "$python" /usr/local/bin/patch-dbt-metadata "/usr/local/dbt${version}/lib/python3.11/site-packages"; \
     done; \
     /usr/local/bin/verify-dbt-image
 
