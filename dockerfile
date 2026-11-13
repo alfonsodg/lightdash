@@ -21,7 +21,9 @@ ENV PATH="$PNPM_HOME/bin:/opt/pnpm:$PATH"
 COPY --from=pnpm-cli /opt/pnpm /opt/pnpm
 COPY --from=pnpm-cli --chmod=755 /pnpm /pnpm
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libatomic1 libstdc++6 \
+    && apt-get install -y --no-install-recommends libatomic1 libstdc++6 zlib1g \
+    && zlib_version="$(dpkg-query -W -f='${Version}' zlib1g)" \
+    && dpkg --compare-versions "$zlib_version" ge '1:1.3.dfsg+really1.3.1-1+deb13u1' \
     && groupadd --gid 1000 node \
     && useradd --uid 1000 --gid node --shell /bin/bash --create-home node \
     && rm -rf /var/lib/apt/lists/*
@@ -35,6 +37,7 @@ WORKDIR /usr/app
 # Stage 1: system dependencies base
 # -----------------------------
 FROM pnpm-base AS base
+COPY scripts/docker/verify-dbt-image.sh /usr/local/bin/verify-dbt-image
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -180,6 +183,27 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     "dbt-duckdb~=1.10.0" \
     && /usr/local/dbt1.12/bin/pip install --no-deps "certifi>=2026.10.19" \
     && ln -s /usr/local/dbt1.12/bin/dbt /usr/local/bin/dbt1.12
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eu; \
+    for version in 1.4 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do \
+        python="/usr/local/dbt${version}/bin/python"; \
+        if "$python" -c 'import importlib.metadata as m; m.version("deepdiff")' >/dev/null 2>&1; then \
+            "$python" -m pip install --upgrade 'deepdiff==8.6.2'; \
+        fi; \
+        if "$python" -c 'import importlib.metadata as m; m.version("Werkzeug")' >/dev/null 2>&1; then \
+            "$python" -m pip install --upgrade 'Werkzeug==3.1.9'; \
+        fi; \
+    done; \
+    for version in 1.5 1.6 1.7 1.8; do \
+        python="/usr/local/dbt${version}/bin/python"; \
+        "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
+        metadata="$(find "/usr/local/dbt${version}/lib/python3.11/site-packages" -path '*/dbt_redshift-*.dist-info/METADATA' -print -quit)"; \
+        test -n "$metadata"; \
+        grep -q '^Requires-Dist: redshift-connector ' "$metadata"; \
+        sed -i 's/^Requires-Dist: redshift-connector .*/Requires-Dist: redshift-connector >=2.1.14,<2.2/' "$metadata"; \
+    done; \
+    /usr/local/bin/verify-dbt-image
 
 # -----------------------------
 # Stage 1: stop here for dev environment
