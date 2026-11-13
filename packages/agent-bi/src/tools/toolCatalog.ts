@@ -1,7 +1,5 @@
-// Shared catalogue of the Phase 3-4 tools: single source for MCP
-// registration and the runtime orchestrator. Execution delegates to the
-// owning module, so policy gating, guards and audit rows stay identical.
-import { AgentToolError } from './agentToolTypes';
+import type { z } from 'zod';
+import type { AgentPrincipal } from '../auth/agentPrincipal';
 import {
     CONTENT_CAPABILITY,
     CONTENT_TOOL_NAMES,
@@ -14,6 +12,23 @@ import {
     type ContentToolDeps,
     type ContentToolName,
 } from '../content/contentTools';
+import {
+    createExportTools,
+    EXPORT_CAPABILITY,
+    EXPORT_TOOL_NAMES,
+    exportChartImageInputSchema,
+    exportDashboardCsvInputSchema,
+    exportDashboardImageInputSchema,
+    scheduleChartDeliveryInputSchema,
+    scheduleDashboardDeliveryInputSchema,
+    type ExportToolDeps,
+    type ExportToolName,
+} from '../export/exportTools';
+// Shared catalogue of the Phase 3-4 tools: single source for MCP
+// registration and the runtime orchestrator. Execution delegates to the
+// owning module, so policy gating, guards and audit rows stay identical.
+import { AgentToolError } from './agentToolTypes';
+import type { AgentToolRuntimeOptions } from './agentToolTypes';
 import {
     createDiscoveryTools,
     DISCOVER_CAPABILITY,
@@ -29,18 +44,6 @@ import {
     type DiscoveryToolName,
 } from './discoveryTools';
 import {
-    createExportTools,
-    EXPORT_CAPABILITY,
-    exportChartImageInputSchema,
-    exportDashboardCsvInputSchema,
-    exportDashboardImageInputSchema,
-    EXPORT_TOOL_NAMES,
-    scheduleChartDeliveryInputSchema,
-    scheduleDashboardDeliveryInputSchema,
-    type ExportToolDeps,
-    type ExportToolName,
-} from '../export/exportTools';
-import {
     createQueryTools,
     QUERY_TOOL_NAMES,
     runComposePipelineInputSchema,
@@ -52,9 +55,6 @@ import {
     type QueryToolDeps,
     type QueryToolName,
 } from './queryTools';
-import type { AgentPrincipal } from '../auth/agentPrincipal';
-import type { AgentToolRuntimeOptions } from './agentToolTypes';
-import type { z } from 'zod';
 
 export type ToolCatalogAllDeps = DiscoveryToolDeps &
     QueryToolDeps &
@@ -216,9 +216,7 @@ export const createToolCatalog = (deps: ToolCatalogAllDeps) => {
         principal: AgentPrincipal,
         options: AgentToolRuntimeOptions = {},
     ): Promise<unknown> => {
-        if (
-            (DISCOVERY_TOOL_NAMES as readonly string[]).includes(toolName)
-        ) {
+        if ((DISCOVERY_TOOL_NAMES as readonly string[]).includes(toolName)) {
             return discovery.executeTool(
                 toolName as DiscoveryToolName,
                 rawInput,

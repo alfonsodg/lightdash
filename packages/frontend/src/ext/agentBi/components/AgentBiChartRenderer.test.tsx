@@ -107,6 +107,32 @@ const rendered = (output: RenderedChart['kind']): RenderedChart => {
     }
 };
 
+const tableWithRows = (rows: Array<Record<string, unknown>>): RenderedChart =>
+    ({
+        colorAssignments: {},
+        chartType: ChartType.TABLE,
+        kind: 'table',
+        model: {
+            columns: [
+                {
+                    frozen: false,
+                    header: {},
+                    id: 'orders',
+                    imageWidth: undefined,
+                    isVisible: true,
+                    item: undefined,
+                    labelOverride: undefined,
+                    total: {},
+                    width: undefined,
+                },
+            ],
+            groupedSubtotals: undefined,
+            pivotData: undefined,
+            rows,
+            totals: undefined,
+        },
+    }) as unknown as RenderedChart;
+
 describe('AgentBiChartRenderer', () => {
     it('renders echarts output', () => {
         renderWithProviders(
@@ -120,6 +146,33 @@ describe('AgentBiChartRenderer', () => {
             <AgentBiChartRenderer output={rendered('table')} />,
         );
         expect(screen.getByText('42')).toBeInTheDocument();
+    });
+
+    it.each([
+        {
+            name: 'formatted result cells',
+            row: { orders: { value: { formatted: '$42.00', raw: 42 } } },
+            expected: '$42.00',
+        },
+        {
+            name: 'serialized result cells',
+            row: {
+                orders: '{"value":{"formatted":"$42.00","raw":42}}',
+            },
+            expected: '$42.00',
+        },
+        {
+            name: 'flat query preview values',
+            row: { orders: 42 },
+            expected: '42',
+        },
+    ])('renders $name', ({ row, expected }) => {
+        renderWithProviders(
+            <AgentBiChartRenderer output={tableWithRows([row])} />,
+        );
+
+        expect(screen.getByText(expected)).toBeInTheDocument();
+        expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
     });
 
     it('renders bigNumber output value and label', () => {

@@ -15,6 +15,18 @@ const CHART_HEIGHT = 320;
 
 const cellText = (value: unknown): string => {
     if (typeof value === 'string') {
+        try {
+            const parsed: unknown = JSON.parse(value);
+            if (
+                typeof parsed === 'object' &&
+                parsed !== null &&
+                'value' in parsed
+            ) {
+                return cellText(parsed.value);
+            }
+        } catch {
+            // Plain strings are already display values.
+        }
         return value;
     }
     if (typeof value === 'number') {
@@ -22,6 +34,18 @@ const cellText = (value: unknown): string => {
     }
     if (value === null || value === undefined) {
         return '—';
+    }
+    if (typeof value === 'object') {
+        if ('value' in value) {
+            return cellText(value.value);
+        }
+        if ('formatted' in value) {
+            return cellText(value.formatted);
+        }
+        if ('raw' in value) {
+            return cellText(value.raw);
+        }
+        return JSON.stringify(value);
     }
     return String(value);
 };
@@ -31,7 +55,7 @@ const rowCell = (row: ResultRow, columnId: string): string => {
     if (cell === undefined) {
         return '—';
     }
-    return cellText((cell as { value: unknown }).value);
+    return cellText(cell);
 };
 
 const EchartsBody = ({

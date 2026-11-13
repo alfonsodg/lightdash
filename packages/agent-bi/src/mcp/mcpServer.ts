@@ -4,15 +4,15 @@
 // Execution delegates to the owning module through the shared catalogue,
 // so policy gating, guards and audit rows stay identical everywhere.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
 import { evaluateCapability } from '../policy/capabilityPolicy';
+import { AgentToolError } from '../tools/agentToolTypes';
 import {
     createToolCatalog,
     TOOL_CATALOG,
     type ToolCatalogAllDeps,
 } from '../tools/toolCatalog';
-import { AgentToolError } from '../tools/agentToolTypes';
-import { z } from 'zod';
 
 export type McpServerDeps = ToolCatalogAllDeps;
 
@@ -46,13 +46,12 @@ export const createAgentBiMcpServer = ({
     });
     const catalog = createToolCatalog(deps);
 
-    for (const entry of TOOL_CATALOG) {
-        if (
-            !evaluateCapability(principal, entry.capability, deps.policyContext)
-                .allowed
-        ) {
-            continue;
-        }
+    const visibleTools = TOOL_CATALOG.filter(
+        (entry) =>
+            evaluateCapability(principal, entry.capability, deps.policyContext)
+                .allowed,
+    );
+    for (const entry of visibleTools) {
         const inputSchema: z.ZodObject<z.ZodRawShape> = entry.inputSchema;
         server.registerTool(
             entry.name,

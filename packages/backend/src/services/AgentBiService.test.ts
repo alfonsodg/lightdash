@@ -16,18 +16,6 @@ const ORG = '11111111-1111-4111-8111-111111111111';
 const PROJECT = '22222222-2222-4222-8222-222222222222';
 const USER = '33333333-3333-4333-8333-333333333333';
 
-const row = (overrides: Record<string, unknown> = {}) => ({
-    content: 'orders status pending',
-    explore_name: 'orders',
-    field_kind: null,
-    field_name: null,
-    project_uuid: PROJECT,
-    resource_type: 'explore',
-    resource_uuid: '11111111-1111-4111-8111-111111111111',
-    table_name: null,
-    ...overrides,
-});
-
 const makeAccount = (rules: Array<Record<string, unknown>>): Account =>
     ({
         authentication: { type: 'session' },
@@ -175,6 +163,18 @@ describe('AgentBiService project access', () => {
 });
 
 describe('AgentBiService catalog search', () => {
+    const row = (overrides: Record<string, unknown> = {}) => ({
+        content: 'orders status pending',
+        explore_name: 'orders',
+        field_kind: null,
+        field_name: null,
+        project_uuid: PROJECT,
+        resource_type: 'explore',
+        resource_uuid: '11111111-1111-4111-8111-111111111111',
+        table_name: null,
+        ...overrides,
+    });
+
     it('scopes catalog search to the requested project', async () => {
         const otherProject = '44444444-4444-4444-8444-444444444444';
         const projectHit = row({
@@ -209,7 +209,9 @@ describe('AgentBiService catalog search', () => {
                 ['orders', new Set(['orders.status'])],
             ]),
         };
-        const { search } = service.buildToolDeps({}).catalogSearch;
+        const {
+            catalogSearch: { search },
+        } = service.buildToolDeps({});
         const hits = (await Reflect.apply(search, undefined, [
             'orders status',
             visibility,

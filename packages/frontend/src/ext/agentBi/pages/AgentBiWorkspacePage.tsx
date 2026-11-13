@@ -22,6 +22,7 @@ import {
     type StreamInput,
 } from '../hooks/useAgentBiStream';
 import { useAgentBiThreads } from '../hooks/useAgentBiThreads';
+import classes from './AgentBiWorkspacePage.module.css';
 
 type PendingApproval = {
     approvalUuid: string;
@@ -197,8 +198,14 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const persisted = (storedMessages ?? []).map((message) => message.content);
 
     return (
-        <Group align="flex-start" gap="lg" p="lg" wrap="nowrap">
-            <Stack gap="md" w={280}>
+        <Group
+            align="flex-start"
+            className={classes.layout}
+            gap="lg"
+            p="lg"
+            wrap="nowrap"
+        >
+            <Stack gap="md" className={classes.sidebar}>
                 <Text fw={600} fz="lg">
                     Ask AI
                 </Text>
@@ -259,7 +266,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                     Live context
                 </Button>
             </Stack>
-            <Stack gap="md" flex={1}>
+            <Stack gap="md" className={classes.conversation}>
                 {persisted.length > 0 ? (
                     <Stack gap="xs">
                         {persisted.map((content, index) => (
