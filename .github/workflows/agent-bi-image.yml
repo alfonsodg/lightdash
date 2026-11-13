@@ -188,6 +188,7 @@ jobs:
           format: cyclonedx
           output: image-sbom.cdx.json
           exit-code: '0'
+          timeout: 15m
           vuln-type: os,library
           list-all-pkgs: 'true'
 
