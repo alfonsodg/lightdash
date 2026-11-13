@@ -113,6 +113,8 @@ export type AgentToolDepsForOrchestrator = ToolCatalogAllDeps;
 
 const NEEDS_APPROVAL = new Set<string>([
     'run_sql',
+    'schedule_chart_delivery',
+    'schedule_dashboard_delivery',
     'upsert_chart_as_code',
     'upsert_dashboard_as_code',
     'upsert_sql_chart_as_code',

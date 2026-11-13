@@ -26,6 +26,16 @@ const DEFAULT_SERVER_INFO: McpServerInfo = {
     version: '1',
 };
 
+// MCP has no user-bound approval channel; these actions must fail closed.
+const REQUIRES_CONFIRMATION = new Set([
+    'run_sql',
+    'schedule_chart_delivery',
+    'schedule_dashboard_delivery',
+    'upsert_chart_as_code',
+    'upsert_dashboard_as_code',
+    'upsert_sql_chart_as_code',
+]);
+
 const toRecord = (value: unknown): Record<string, unknown> =>
     value !== null && typeof value === 'object' && !Array.isArray(value)
         ? (value as Record<string, unknown>)
@@ -48,6 +58,7 @@ export const createAgentBiMcpServer = ({
 
     const visibleTools = TOOL_CATALOG.filter(
         (entry) =>
+            !REQUIRES_CONFIRMATION.has(entry.name) &&
             evaluateCapability(principal, entry.capability, deps.policyContext)
                 .allowed,
     );

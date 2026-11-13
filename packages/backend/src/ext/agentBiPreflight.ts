@@ -138,6 +138,7 @@ interface PreflightIdentity {
     organizationUuid: unknown;
     ability: unknown;
     userType: unknown;
+    userAttributes: unknown;
 }
 
 function readIdentity(req: Request): PreflightIdentity | null {
@@ -149,6 +150,7 @@ function readIdentity(req: Request): PreflightIdentity | null {
                   userUuid?: unknown;
                   type?: unknown;
                   ability?: unknown;
+                  userAttributes?: unknown;
               };
           }
         | undefined;
@@ -162,6 +164,7 @@ function readIdentity(req: Request): PreflightIdentity | null {
             organizationUuid: account.organization?.organizationUuid,
             ability: account.user?.ability,
             userType: account.user?.type,
+            userAttributes: account.user?.userAttributes ?? {},
         };
     }
     const user = req.user as
@@ -169,6 +172,7 @@ function readIdentity(req: Request): PreflightIdentity | null {
               userUuid?: unknown;
               organizationUuid?: unknown;
               ability?: unknown;
+              userAttributes?: unknown;
           }
         | undefined;
     if (user) {
@@ -178,6 +182,7 @@ function readIdentity(req: Request): PreflightIdentity | null {
             organizationUuid: user.organizationUuid,
             ability: user.ability,
             userType: 'registered',
+            userAttributes: user.userAttributes ?? {},
         };
     }
     return null;
@@ -232,10 +237,9 @@ export function resolvePreflightPrincipal(
         );
     }
     const authType = identity.authType as AgentPreflightAuthType;
-    // User attributes are not attached to the request; the hash covers the
-    // empty map until a service-backed lookup exists. Isolation still holds
-    // per user, org and auth type through the cache key below.
-    const userAttributesHash = hashPreflightAttributes({});
+    const userAttributesHash = hashPreflightAttributes(
+        identity.userAttributes ?? {},
+    );
     return {
         userUuid,
         organizationUuid,

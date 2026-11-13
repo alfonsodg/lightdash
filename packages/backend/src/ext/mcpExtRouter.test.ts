@@ -240,16 +240,17 @@ describe('mcpExtRouter authenticated tools', () => {
             try {
                 const listed = await client.listTools();
                 const names = listed.tools.map((tool) => tool.name);
-                expect(names).toHaveLength(21);
+                expect(names).toHaveLength(16);
                 for (const name of [
                     'list_explores',
                     'run_metric_query',
-                    'upsert_chart_as_code',
                     'export_dashboard_csv',
                 ]) {
                     expect(names).toContain(name);
                 }
                 expect(names).not.toContain('run_sql');
+                expect(names).not.toContain('schedule_chart_delivery');
+                expect(names).not.toContain('upsert_chart_as_code');
             } finally {
                 await close();
             }
@@ -307,7 +308,7 @@ describe('mcpExtRouter authenticated tools', () => {
         }
     });
 
-    it('executes upsert_chart_as_code and writes an audit row', async () => {
+    it('rejects a direct content write without an approval channel', async () => {
         const { createMcpDeps, recordedAudits } = setupDeps();
         const server = await startApp({ createMcpDeps, godMode: true });
         const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -325,10 +326,10 @@ describe('mcpExtRouter authenticated tools', () => {
                     },
                     name: 'upsert_chart_as_code',
                 });
-                expect(called.content).toBeDefined();
+                expect(called.isError).toBe(true);
                 expect(
                     auditToolOf(recordedAudits, 'upsert_chart_as_code'),
-                ).toBe(true);
+                ).toBe(false);
             } finally {
                 await close();
             }

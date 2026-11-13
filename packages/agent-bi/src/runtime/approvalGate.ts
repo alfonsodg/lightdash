@@ -88,7 +88,7 @@ export const parseApprovalContent = (
 };
 
 export const isApprovalMessage = (message: MessageRecord): boolean =>
-    parseApprovalContent(
+    message.role === 'system' && parseApprovalContent(
         message.messageUuid,
         message.threadUuid,
         message.content,
@@ -99,13 +99,15 @@ export const listPendingApprovals = (
 ): ApprovalRequest[] => {
     const pending: ApprovalRequest[] = [];
     for (const message of messages) {
-        const request = parseApprovalContent(
-            message.messageUuid,
-            message.threadUuid,
-            message.content,
-        );
-        if (request !== null && request.status === 'pending') {
-            pending.push(request);
+        if (message.role === 'system') {
+            const request = parseApprovalContent(
+                message.messageUuid,
+                message.threadUuid,
+                message.content,
+            );
+            if (request !== null && request.status === 'pending') {
+                pending.push(request);
+            }
         }
     }
     return pending;
@@ -148,7 +150,7 @@ export const requestApproval = async (
         store.createMessage(
             {
                 content: envelope,
-                role: 'assistant',
+                role: 'system',
                 threadUuid: input.threadUuid,
             },
             input.access,
@@ -159,11 +161,14 @@ export const requestApproval = async (
         message.threadUuid,
         message.content,
     );
-    if (request === null) {
+    if (message.role !== 'system' || request === null) {
         throw new ApprovalGateError(
             'INVALID_INPUT',
             'Approval request could not be recorded.',
         );
+    }
+    if (request.requestedBy !== input.access.requesterUuid) {
+        throw new ApprovalGateError('FORBIDDEN', 'Approval belongs to another user.');
     }
     return request;
 };
@@ -187,10 +192,16 @@ export const resolveApproval = async (
         message.threadUuid,
         message.content,
     );
-    if (request === null) {
+    if (message.role !== 'system' || request === null) {
         throw new ApprovalGateError(
             'INVALID_INPUT',
             'Message is not an approval request.',
+        );
+    }
+    if (request.requestedBy !== input.access.requesterUuid) {
+        throw new ApprovalGateError(
+            'FORBIDDEN',
+            'Approval belongs to another user.',
         );
     }
     if (request.status !== 'pending') {

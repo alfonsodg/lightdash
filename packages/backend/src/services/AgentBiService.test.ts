@@ -770,7 +770,7 @@ describe('AgentBiService resolveThreadApproval', () => {
         }),
         created_at: '2026-01-02T03:04:05.000Z',
         message_uuid: APPROVAL,
-        role: 'assistant',
+        role: 'system',
         thread_uuid: THREAD,
     });
     const setupApproval = (queued: Array<Array<Record<string, unknown>>>) => {

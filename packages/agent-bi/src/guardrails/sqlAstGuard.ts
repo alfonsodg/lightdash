@@ -178,6 +178,7 @@ export interface SqlGuardOptions {
     readOnly?: SqlGuardReadOnlyAttestation | null;
     approvalToken?: string | null;
     expectedApprovalToken?: string | null;
+    requireApproval?: boolean;
     maxRows?: number;
     dialect?: string | null;
 }
@@ -359,28 +360,30 @@ export function evaluateSqlGuard(
             'This warehouse dialect is not covered by the SQL guard.',
         );
     }
-    if (
-        typeof options.approvalToken !== 'string' ||
-        options.approvalToken.length === 0
-    ) {
-        return deny(
-            'MISSING_APPROVAL',
-            'Human approval for this exact execution is required.',
-        );
-    }
-    if (
-        (options.expectedApprovalToken !== undefined &&
-            options.expectedApprovalToken !== null &&
-            options.approvalToken !== options.expectedApprovalToken) ||
-        (isStrictApprovalEnv() &&
-            (options.expectedApprovalToken === undefined ||
-                options.expectedApprovalToken === null ||
-                options.expectedApprovalToken.length === 0))
-    ) {
-        return deny(
-            'APPROVAL_MISMATCH',
-            'Approval is not bound to this exact execution.',
-        );
+    if (options.requireApproval !== false) {
+        if (
+            typeof options.approvalToken !== 'string' ||
+            options.approvalToken.length === 0
+        ) {
+            return deny(
+                'MISSING_APPROVAL',
+                'Human approval for this exact execution is required.',
+            );
+        }
+        if (
+            (options.expectedApprovalToken !== undefined &&
+                options.expectedApprovalToken !== null &&
+                options.approvalToken !== options.expectedApprovalToken) ||
+            (isStrictApprovalEnv() &&
+                (options.expectedApprovalToken === undefined ||
+                    options.expectedApprovalToken === null ||
+                    options.expectedApprovalToken.length === 0))
+        ) {
+            return deny(
+                'APPROVAL_MISMATCH',
+                'Approval is not bound to this exact execution.',
+            );
+        }
     }
 
     const code = toCodeOnly(sql);

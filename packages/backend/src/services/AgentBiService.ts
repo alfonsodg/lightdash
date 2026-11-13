@@ -187,6 +187,87 @@ export class AgentBiService extends BaseService {
         });
         const rawSql: RawSqlGuardrails = { readOnlyEnforced: false };
         const sqlApproval: ContentSqlApproval = { readOnlyEnforced: false };
+        const resolveChartSql = async (
+            projectUuid: string,
+            chartUuid: string,
+        ) => {
+            const { rows } = await this.agentBiModel.query(
+                `SELECT s.saved_sql_uuid, v.sql, v.limit
+                 FROM saved_sql s
+                 LEFT JOIN LATERAL (
+                     SELECT sql, "limit"
+                     FROM saved_sql_versions
+                     WHERE saved_sql_uuid = s.saved_sql_uuid
+                     ORDER BY created_at DESC, saved_sql_version_uuid DESC
+                     LIMIT 1
+                 ) v ON true
+                 WHERE s.project_uuid = $1 AND s.saved_sql_uuid = $2`,
+                [projectUuid, chartUuid],
+            );
+            if (rows.length > 0) {
+                const row = rows[0] as Record<string, unknown>;
+                return {
+                    isSqlChart: true,
+                    limit: typeof row.limit === 'number' ? row.limit : null,
+                    sql: typeof row.sql === 'string' ? row.sql : null,
+                };
+            }
+            return { isSqlChart: false };
+        };
+        const resolveDashboardSqlCharts = async (
+            projectUuid: string,
+            dashboardUuidOrSlug: string,
+        ) => {
+            const { rows } = await this.agentBiModel.query(
+                `SELECT s.saved_sql_uuid, v.sql, v.limit
+                 FROM dashboards d
+                 JOIN dashboard_versions dv ON dv.dashboard_id = d.dashboard_id
+                 JOIN dashboard_views dvs ON dvs.dashboard_version_id = dv.dashboard_version_id
+                 JOIN dashboard_tiles dt ON dt.dashboard_version_id = dv.dashboard_version_id
+                 JOIN dashboard_tile_sql_charts dtsc ON dtsc.dashboard_tile_uuid = dt.dashboard_tile_uuid
+                 JOIN saved_sql s ON s.saved_sql_uuid = dtsc.saved_sql_uuid
+                 LEFT JOIN LATERAL (
+                     SELECT sql, "limit"
+                     FROM saved_sql_versions
+                     WHERE saved_sql_uuid = s.saved_sql_uuid
+                     ORDER BY created_at DESC, saved_sql_version_uuid DESC
+                     LIMIT 1
+                 ) v ON true
+                 WHERE d.project_uuid = $1 AND (d.dashboard_uuid::text = $2 OR d.slug = $2)`,
+                [projectUuid, dashboardUuidOrSlug],
+            );
+            return rows.map((row) => {
+                const record = row as Record<string, unknown>;
+                return {
+                    isSqlChart: true,
+                    limit:
+                        typeof record.limit === 'number' ? record.limit : null,
+                    sql: typeof record.sql === 'string' ? record.sql : null,
+                };
+            });
+        };
+        const verifySpaceAccess = async (
+            projectUuid: string,
+            spaceSlug: string,
+        ) => {
+            const { rows } = await this.agentBiModel.query(
+                `SELECT s.project_member_access_role
+                 FROM spaces s
+                 JOIN projects p ON p.project_id = s.project_id
+                 WHERE p.project_uuid = $1 AND s.slug = $2 AND s.deleted_at IS NULL
+                 LIMIT 1`,
+                [projectUuid, spaceSlug],
+            );
+            if (rows.length === 0) {
+                return { exists: false, isPublic: false, writable: false };
+            }
+            const row = rows[0] as Record<string, unknown>;
+            return {
+                exists: true,
+                isPublic: row.project_member_access_role !== null,
+                writable: true,
+            };
+        };
         return {
             auditClient,
             catalogSearch,
@@ -211,8 +292,11 @@ export class AgentBiService extends BaseService {
             queryClient,
             rawSql,
             renderer: dryRunRenderer,
+            resolveChartSql,
+            resolveDashboardSqlCharts,
             sqlApproval,
             validators: this.validators,
+            verifySpaceAccess,
         };
     }
 
@@ -415,7 +499,7 @@ export class AgentBiService extends BaseService {
                 access,
             );
             const recordedRequest =
-                recorded === null
+                recorded === null || recorded.role !== 'system'
                     ? null
                     : parseApprovalContent(
                           recorded.messageUuid,

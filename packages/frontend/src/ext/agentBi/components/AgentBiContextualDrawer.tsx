@@ -9,6 +9,7 @@ import type { FC } from 'react';
 
 export type AgentBiDrawerContext = {
     activeTab?: string;
+    chartSlug?: string;
     dashboardFilters?: DashboardFilters;
     dashboardSlug?: string;
     dateZoom?: string;
@@ -23,6 +24,9 @@ type Props = {
 
 const rowsOf = (context: AgentBiDrawerContext): Array<[string, string]> => {
     const rows: Array<[string, string]> = [];
+    if (context.chartSlug !== undefined) {
+        rows.push(['Chart', context.chartSlug]);
+    }
     if (context.dashboardSlug !== undefined) {
         rows.push(['Dashboard', context.dashboardSlug]);
     }

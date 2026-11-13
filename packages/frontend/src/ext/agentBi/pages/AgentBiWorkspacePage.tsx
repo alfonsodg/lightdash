@@ -127,19 +127,27 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             return;
         }
         const text = draft.trim();
-        const context: TurnContext = dashboardContext?.dashboardSlug
+        const pinnedContext = dashboardContext?.dashboardSlug
             ? {
-                  pinnedContext: {
-                      kind: 'dashboard',
-                      slug: dashboardContext.dashboardSlug,
-                  },
+                  kind: 'dashboard' as const,
+                  slug: dashboardContext.dashboardSlug,
+              }
+            : dashboardContext?.chartSlug
+              ? {
+                    kind: 'chart' as const,
+                    slug: dashboardContext.chartSlug,
+                }
+              : undefined;
+        const context: TurnContext = pinnedContext
+            ? {
+                  pinnedContext,
                   runtimeOverrides: {
-                      activeTab: dashboardContext.activeTab,
-                      dateZoom: dashboardContext.dateZoom,
-                      filters: dashboardContext.dashboardFilters
+                      activeTab: dashboardContext?.activeTab,
+                      dateZoom: dashboardContext?.dateZoom,
+                      filters: dashboardContext?.dashboardFilters
                           ? { ...dashboardContext.dashboardFilters }
                           : undefined,
-                      parameters: dashboardContext.parameters,
+                      parameters: dashboardContext?.parameters,
                   },
               }
             : {};

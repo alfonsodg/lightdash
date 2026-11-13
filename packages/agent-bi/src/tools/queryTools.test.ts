@@ -320,6 +320,77 @@ describe('run_compose_pipeline', () => {
         expect(error).toBeInstanceOf(AgentToolError);
         expect((error as AgentToolError).code).toBe('INVALID_INPUT');
     });
+
+    it('denies SQL compose sources when raw_sql is disabled', async () => {
+        const { tools } = setup();
+        const error = await tools
+            .executeTool(
+                'run_compose_pipeline',
+                {
+                    projectUuid: PROJECT_UUID,
+                    queries: [{ sql: 'SELECT 1', type: 'sql' }],
+                },
+                allowAllPrincipal(),
+            )
+            .catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(AgentToolError);
+        expect((error as AgentToolError).code).toBe('POLICY_DENIED');
+    });
+
+    it('denies saved SQL charts via run_saved_chart when raw_sql is disabled', async () => {
+        const { tools } = setup({
+            resolveChartSql: async () => ({
+                isSqlChart: true,
+                sql: 'SELECT 1',
+            }),
+        });
+        const error = await tools
+            .executeTool(
+                'run_saved_chart',
+                {
+                    chartUuid: CHART_UUID,
+                    projectUuid: PROJECT_UUID,
+                },
+                allowAllPrincipal(),
+            )
+            .catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(AgentToolError);
+        expect((error as AgentToolError).code).toBe('POLICY_DENIED');
+    });
+
+    it('surfaces truncation warnings when compose sources are paginated', async () => {
+        const { tools } = setup({
+            queryClient: {
+                executeComposeQueries: async () => ({
+                    queries: [
+                        { queryUuid: '11111111-1111-4111-8111-111111111111' },
+                    ],
+                }),
+                pollQueryToReady: async () => ({
+                    columns: {},
+                    nextPage: 2,
+                    page: 1,
+                    pageSize: 1,
+                    previousPage: null,
+                    queryUuid: '11111111-1111-4111-8111-111111111111',
+                    rows: [{ a: 1 }],
+                    status: 'ready',
+                    totalPageCount: 2,
+                    totalResults: 2,
+                }),
+            } as never,
+        });
+        const result = (await tools.executeTool(
+            'run_compose_pipeline',
+            {
+                projectUuid: PROJECT_UUID,
+                queries: [{ nodeA: true }],
+            },
+            allowAllPrincipal(),
+        )) as { truncated?: boolean; warnings?: string[] };
+        expect(result.truncated).toBe(true);
+        expect(result.warnings?.[0]).toContain('truncated');
+    });
 });
 
 describe('run_sql', () => {

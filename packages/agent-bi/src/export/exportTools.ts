@@ -15,7 +15,9 @@ import {
     type AuditVerdictSource,
 } from '../audit/auditLogger';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
+import { evaluateSqlGuard } from '../guardrails/sqlAstGuard';
 import { evaluateCapability } from '../policy/capabilityPolicy';
+import type { ChartSqlProvenance, RawSqlGuardrails } from '../tools/queryTools';
 import {
     AgentToolError,
     formatValidationError,
@@ -191,8 +193,22 @@ export const defaultExportPollConfig = (): ExportPollConfig => ({
 });
 
 export interface ExportToolDeps extends AgentToolBaseDeps {
+    authorizeDeliveryTargets?: (input: {
+        principal: AgentPrincipal;
+        projectUuid: string;
+        targets: Array<Record<string, unknown>>;
+    }) => Promise<{ allowed: boolean; reason?: string }>;
     exportFetch: ExportFetch;
     poll: ExportPollConfig;
+    rawSql?: RawSqlGuardrails;
+    resolveChartSql?: (
+        projectUuid: string,
+        chartUuid: string,
+    ) => Promise<ChartSqlProvenance | null>;
+    resolveDashboardSqlCharts?: (
+        projectUuid: string,
+        dashboardUuidOrSlug: string,
+    ) => Promise<ChartSqlProvenance[] | null>;
 }
 
 type InvokeFn = () => Promise<unknown>;
@@ -495,6 +511,84 @@ const schedulerUuidOf = (results: unknown): string => {
     return candidate;
 };
 
+const enforceExportSqlGuard = (
+    deps: ExportToolDeps,
+    principal: AgentPrincipal,
+    provenance: ChartSqlProvenance | null,
+    approvalToken?: string,
+): void => {
+    if (provenance === null) {
+        throw new AgentToolError(
+            'GUARD_DENIED',
+            'Export target SQL provenance cannot be verified.',
+        );
+    }
+    if (!provenance.isSqlChart) {
+        return;
+    }
+    if (!provenance.sql) {
+        throw new AgentToolError(
+            'GUARD_DENIED',
+            'SQL chart definition could not be inspected before export.',
+        );
+    }
+    const rawSqlPolicy = evaluateCapability(
+        principal,
+        'raw_sql',
+        deps.policyContext,
+    );
+    if (!rawSqlPolicy.allowed) {
+        throw new AgentToolError(
+            'POLICY_DENIED',
+            'The current user lacks permission to export SQL charts.',
+            rawSqlPolicy.reason,
+        );
+    }
+    const verdict = evaluateSqlGuard(provenance.sql, {
+        approvalToken: approvalToken ?? null,
+        dialect: deps.rawSql?.dialect ?? null,
+        expectedApprovalToken: deps.rawSql?.expectedApprovalToken ?? null,
+        maxRows: provenance.limit ?? deps.rawSql?.maxRows ?? undefined,
+        principal: {
+            organizationUuid: principal.organizationUuid,
+            userUuid: principal.userUuid,
+        },
+        readOnly: {
+            enforced: deps.rawSql?.readOnlyEnforced ?? false,
+        },
+    });
+    if (!verdict.allowed) {
+        throw new AgentToolError(
+            'GUARD_DENIED',
+            verdict.message,
+            verdict.reason,
+        );
+    }
+};
+
+const assertAuthorizedDelivery = async (
+    deps: ExportToolDeps,
+    principal: AgentPrincipal,
+    projectUuid: string,
+    targets: Array<Record<string, unknown>>,
+): Promise<void> => {
+    if (!deps.authorizeDeliveryTargets) {
+        return;
+    }
+    const verdict = await deps.authorizeDeliveryTargets({
+        principal,
+        projectUuid,
+        targets,
+    });
+    if (!verdict.allowed) {
+        throw new AgentToolError(
+            'POLICY_DENIED',
+            verdict.reason ??
+                'One or more delivery recipients are not authorized.',
+        );
+    }
+};
+
 export const createExportTools = (deps: ExportToolDeps) => {
     requireDeps(deps);
 
@@ -559,6 +653,13 @@ export const createExportTools = (deps: ExportToolDeps) => {
                 options,
                 exportChartImageOutputSchema,
                 async () => {
+                    if (deps.resolveChartSql) {
+                        const provenance = await deps.resolveChartSql(
+                            input.projectUuid,
+                            input.chartUuid,
+                        );
+                        enforceExportSqlGuard(deps, principal, provenance);
+                    }
                     const results = unwrapResults(
                         await deps.exportFetch(
                             {
@@ -595,7 +696,24 @@ export const createExportTools = (deps: ExportToolDeps) => {
                 principal,
                 options,
                 dashboardExportOutputSchema,
-                async () => scheduleExport('image', input, options),
+                async () => {
+                    if (deps.resolveDashboardSqlCharts) {
+                        const charts = await deps.resolveDashboardSqlCharts(
+                            input.projectUuid,
+                            input.dashboardUuid,
+                        );
+                        if (charts === null) {
+                            throw new AgentToolError(
+                                'GUARD_DENIED',
+                                'Dashboard SQL chart provenance cannot be verified.',
+                            );
+                        }
+                        for (const chart of charts) {
+                            enforceExportSqlGuard(deps, principal, chart);
+                        }
+                    }
+                    return scheduleExport('image', input, options);
+                },
             ) as Promise<DashboardExportOutput>,
 
         export_dashboard_csv: (
@@ -609,7 +727,24 @@ export const createExportTools = (deps: ExportToolDeps) => {
                 principal,
                 options,
                 dashboardExportOutputSchema,
-                async () => scheduleExport('csv', input, options),
+                async () => {
+                    if (deps.resolveDashboardSqlCharts) {
+                        const charts = await deps.resolveDashboardSqlCharts(
+                            input.projectUuid,
+                            input.dashboardUuid,
+                        );
+                        if (charts === null) {
+                            throw new AgentToolError(
+                                'GUARD_DENIED',
+                                'Dashboard SQL chart provenance cannot be verified.',
+                            );
+                        }
+                        for (const chart of charts) {
+                            enforceExportSqlGuard(deps, principal, chart);
+                        }
+                    }
+                    return scheduleExport('csv', input, options);
+                },
             ) as Promise<DashboardExportOutput>,
 
         schedule_chart_delivery: (
@@ -624,6 +759,19 @@ export const createExportTools = (deps: ExportToolDeps) => {
                 options,
                 scheduleChartDeliveryOutputSchema,
                 async () => {
+                    if (deps.resolveChartSql) {
+                        const provenance = await deps.resolveChartSql(
+                            input.projectUuid,
+                            input.chartUuid,
+                        );
+                        enforceExportSqlGuard(deps, principal, provenance);
+                    }
+                    await assertAuthorizedDelivery(
+                        deps,
+                        principal,
+                        input.projectUuid,
+                        input.scheduler.targets,
+                    );
                     const results = unwrapResults(
                         await deps.exportFetch(
                             {
@@ -660,6 +808,27 @@ export const createExportTools = (deps: ExportToolDeps) => {
                 options,
                 scheduleDashboardDeliveryOutputSchema,
                 async () => {
+                    if (deps.resolveDashboardSqlCharts) {
+                        const charts = await deps.resolveDashboardSqlCharts(
+                            input.projectUuid,
+                            input.dashboardUuidOrSlug,
+                        );
+                        if (charts === null) {
+                            throw new AgentToolError(
+                                'GUARD_DENIED',
+                                'Dashboard SQL chart provenance cannot be verified.',
+                            );
+                        }
+                        for (const chart of charts) {
+                            enforceExportSqlGuard(deps, principal, chart);
+                        }
+                    }
+                    await assertAuthorizedDelivery(
+                        deps,
+                        principal,
+                        input.projectUuid,
+                        input.scheduler.targets,
+                    );
                     const results = unwrapResults(
                         await deps.exportFetch(
                             {

@@ -93,6 +93,7 @@ export const runMetricQueryInputSchema = z
 
 export const runSavedChartInputSchema = z
     .object({
+        approvalToken: z.string().min(1).max(1024).optional(),
         chartUuid: z.string().uuid(),
         dashboardFilters: z.record(z.string(), z.unknown()).optional(),
         dashboardUuid: z.string().uuid().optional(),
@@ -124,6 +125,7 @@ export const runUnderlyingDataInputSchema = z.object({
 });
 
 export const runComposePipelineInputSchema = z.object({
+    approvalToken: z.string().min(1).max(1024).optional(),
     invalidateCache: z.boolean().optional(),
     page: pageSchema,
     pageSize: pageSizeSchema,
@@ -158,6 +160,8 @@ export const runSqlOutputSchema = agentReadyPageSchema;
 
 export const runComposePipelineOutputSchema = z.object({
     pages: z.array(agentReadyPageSchema).min(1),
+    truncated: z.boolean().optional(),
+    warnings: z.array(z.string()).optional(),
 });
 
 export type RunComposePipelineOutput = z.infer<
@@ -184,11 +188,21 @@ export interface RawSqlGuardrails {
     readOnlyEnforced: boolean;
 }
 
+export interface ChartSqlProvenance {
+    isSqlChart: boolean;
+    limit?: number | null;
+    sql?: string | null;
+}
+
 export interface QueryToolDeps extends AgentToolBaseDeps {
     composeMaxQueries?: number;
     defaultTimeoutMs?: number;
     queryClient: QueryToolsClient;
     rawSql: RawSqlGuardrails;
+    resolveChartSql?: (
+        projectUuid: string,
+        chartUuid: string,
+    ) => Promise<ChartSqlProvenance | null>;
 }
 
 type InvokeFn = () => Promise<unknown>;
@@ -297,6 +311,47 @@ const pollOptionsOf = (
     ...(input.pageSize !== undefined ? { pageSize: input.pageSize } : {}),
 });
 
+const enforceSqlExecutionGuard = (
+    deps: QueryToolDeps,
+    principal: AgentPrincipal,
+    sql: string,
+    approvalToken: string | undefined,
+    limit: number | null | undefined,
+): void => {
+    const rawSqlPolicy = evaluateCapability(
+        principal,
+        'raw_sql',
+        deps.policyContext,
+    );
+    if (!rawSqlPolicy.allowed) {
+        throw new AgentToolError(
+            'POLICY_DENIED',
+            'The current user lacks permission for arbitrary SQL execution.',
+            rawSqlPolicy.reason,
+        );
+    }
+    const verdict = evaluateSqlGuard(sql, {
+        approvalToken: approvalToken ?? null,
+        dialect: deps.rawSql.dialect ?? null,
+        expectedApprovalToken: deps.rawSql.expectedApprovalToken ?? null,
+        maxRows: limit ?? deps.rawSql.maxRows ?? undefined,
+        principal: {
+            organizationUuid: principal.organizationUuid,
+            userUuid: principal.userUuid,
+        },
+        readOnly: {
+            enforced: deps.rawSql.readOnlyEnforced,
+        },
+    });
+    if (!verdict.allowed) {
+        throw new AgentToolError(
+            'GUARD_DENIED',
+            verdict.message,
+            verdict.reason,
+        );
+    }
+};
+
 export const createQueryTools = (deps: QueryToolDeps) => {
     const guard = (
         tool: QueryToolName,
@@ -342,6 +397,96 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                             `A compose pipeline supports at most ${maxQueries} queries per call.`,
                         );
                     }
+                    for (const entry of input.queries) {
+                        const rawSqlText =
+                            typeof entry.sql === 'string' ? entry.sql : null;
+                        const isDuckDbTransform = entry.sourceType === 'duckdb';
+                        const isWarehouseSqlSource =
+                            !isDuckDbTransform &&
+                            (rawSqlText !== null ||
+                                entry.type === 'sql' ||
+                                entry.type === 'sql_chart' ||
+                                entry.sourceType === 'sql');
+                        if (isDuckDbTransform) {
+                            if (
+                                rawSqlText === null ||
+                                rawSqlText.trim().length === 0
+                            ) {
+                                throw new AgentToolError(
+                                    'GUARD_DENIED',
+                                    'DuckDB compose transform SQL cannot be empty.',
+                                );
+                            }
+                            const verdict = evaluateSqlGuard(rawSqlText, {
+                                dialect: 'duckdb',
+                                maxRows:
+                                    typeof entry.limit === 'number'
+                                        ? entry.limit
+                                        : deps.rawSql.maxRows ?? undefined,
+                                principal: {
+                                    organizationUuid:
+                                        principal.organizationUuid,
+                                    userUuid: principal.userUuid,
+                                },
+                                readOnly: { enforced: true },
+                                requireApproval: false,
+                            });
+                            if (!verdict.allowed) {
+                                throw new AgentToolError(
+                                    'GUARD_DENIED',
+                                    verdict.message,
+                                    verdict.reason,
+                                );
+                            }
+                        } else if (isWarehouseSqlSource) {
+                            if (
+                                rawSqlText === null ||
+                                rawSqlText.trim().length === 0
+                            ) {
+                                throw new AgentToolError(
+                                    'GUARD_DENIED',
+                                    'SQL compose source cannot be inspected; denying execution.',
+                                );
+                            }
+                            enforceSqlExecutionGuard(
+                                deps,
+                                principal,
+                                rawSqlText,
+                                input.approvalToken,
+                                typeof entry.limit === 'number'
+                                    ? entry.limit
+                                    : undefined,
+                            );
+                        }
+                        if (
+                            typeof entry.savedSqlChartUuid === 'string' &&
+                            deps.resolveChartSql
+                        ) {
+                            // eslint-disable-next-line no-await-in-loop
+                            const provenance = await deps.resolveChartSql(
+                                input.projectUuid,
+                                entry.savedSqlChartUuid,
+                            );
+                            if (
+                                provenance === null ||
+                                (provenance.isSqlChart && !provenance.sql)
+                            ) {
+                                throw new AgentToolError(
+                                    'GUARD_DENIED',
+                                    'SQL compose source provenance cannot be verified.',
+                                );
+                            }
+                            if (provenance.isSqlChart && provenance.sql) {
+                                enforceSqlExecutionGuard(
+                                    deps,
+                                    principal,
+                                    provenance.sql,
+                                    input.approvalToken,
+                                    provenance.limit,
+                                );
+                            }
+                        }
+                    }
                     const executed =
                         await deps.queryClient.executeComposeQueries(
                             input.projectUuid,
@@ -370,7 +515,24 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                             ),
                         ),
                     )) as AgentReadyPage[];
-                    return { pages };
+                    const warnings: string[] = [];
+                    pages.forEach((page, index) => {
+                        if (
+                            page.nextPage !== null ||
+                            (page.totalResults !== null &&
+                                page.totalResults > page.rows.length)
+                        ) {
+                            warnings.push(
+                                `Compose source ${index + 1} returned ${page.rows.length} of ${page.totalResults ?? 'more'} rows; results may be truncated.`,
+                            );
+                        }
+                    });
+                    return {
+                        pages,
+                        ...(warnings.length > 0
+                            ? { truncated: true, warnings }
+                            : {}),
+                    };
                 },
                 (result) =>
                     (result as RunComposePipelineOutput).pages.reduce(
@@ -425,6 +587,30 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                 options,
                 runSavedChartOutputSchema,
                 async () => {
+                    if (deps.resolveChartSql) {
+                        const provenance = await deps.resolveChartSql(
+                            input.projectUuid,
+                            input.chartUuid,
+                        );
+                        if (
+                            provenance === null ||
+                            (provenance.isSqlChart && !provenance.sql)
+                        ) {
+                            throw new AgentToolError(
+                                'GUARD_DENIED',
+                                'Saved chart SQL provenance cannot be verified.',
+                            );
+                        }
+                        if (provenance.isSqlChart && provenance.sql) {
+                            enforceSqlExecutionGuard(
+                                deps,
+                                principal,
+                                provenance.sql,
+                                input.approvalToken,
+                                input.limit ?? provenance.limit,
+                            );
+                        }
+                    }
                     const poll = pollOptionsOf(deps, options, input);
                     if (input.dashboardUuid !== undefined) {
                         const body: V2DashboardChartBody = {

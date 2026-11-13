@@ -132,7 +132,7 @@ describe('agent-bi MCP server tool filtering', () => {
         }
     });
 
-    it('exposes discovery, query, content and export tools to an editor', async () => {
+    it('exposes read-only content and query tools to an editor', async () => {
         const names = (await listToolNames(editor())).map((tool) => tool.name);
         for (const name of [
             'list_explores',
@@ -141,18 +141,24 @@ describe('agent-bi MCP server tool filtering', () => {
             'run_metric_query',
             'run_saved_chart',
             'run_compose_pipeline',
-            'upsert_chart_as_code',
-            'upsert_dashboard_as_code',
             'get_chart_or_dashboard',
             'validate_chart_config',
             'export_dashboard_csv',
-            'schedule_chart_delivery',
         ]) {
             expect(names).toContain(name);
         }
+        for (const name of [
+            'schedule_chart_delivery',
+            'schedule_dashboard_delivery',
+            'upsert_chart_as_code',
+            'upsert_dashboard_as_code',
+            'upsert_sql_chart_as_code',
+        ]) {
+            expect(names).not.toContain(name);
+        }
     });
 
-    it('hides run_sql unless the raw_sql toggle is enabled', async () => {
+    it('hides run_sql even when the raw_sql toggle is enabled', async () => {
         const defaultNames = (await listToolNames(editor())).map(
             (tool) => tool.name,
         );
@@ -163,7 +169,39 @@ describe('agent-bi MCP server tool filtering', () => {
                 raw_sql: true,
             })
         ).map((tool) => tool.name);
-        expect(enabledNames).toContain('run_sql');
+        expect(enabledNames).not.toContain('run_sql');
+    });
+
+    it('rejects direct calls to actions that require confirmation', async () => {
+        const server = createAgentBiMcpServer({
+            deps: stubDeps({ ...defaultCapabilityToggles(), raw_sql: true }),
+            principal: editor(),
+        });
+        const [clientTransport, serverTransport] =
+            InMemoryTransport.createLinkedPair();
+        const client = new Client({ name: 'test', version: '1' });
+        await Promise.all([
+            server.connect(serverTransport),
+            client.connect(clientTransport),
+        ]);
+        try {
+            const results = await Promise.all(
+                [
+                    'run_sql',
+                    'schedule_chart_delivery',
+                    'schedule_dashboard_delivery',
+                    'upsert_chart_as_code',
+                    'upsert_dashboard_as_code',
+                    'upsert_sql_chart_as_code',
+                ].map((name) => client.callTool({ name, arguments: {} })),
+            );
+            for (const result of results) {
+                expect(result.isError).toBe(true);
+            }
+        } finally {
+            await client.close();
+            await server.close();
+        }
     });
 
     it('publishes a valid object JSON schema per tool', async () => {

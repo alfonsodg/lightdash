@@ -192,11 +192,22 @@ export interface ContentSqlApproval {
     readOnlyEnforced: boolean;
 }
 
+export interface SpaceAccessVerdict {
+    exists: boolean;
+    isPublic: boolean;
+    writable: boolean;
+}
+
 export interface ContentToolDeps extends AgentToolBaseDeps {
     contentFetch: ContentFetch;
     renderer: ContentChartRenderer;
     sqlApproval: ContentSqlApproval;
     validators: ContentValidators;
+    verifySpaceAccess?: (
+        projectUuid: string,
+        spaceSlug: string,
+        principal: AgentPrincipal,
+    ) => Promise<SpaceAccessVerdict>;
 }
 
 type InvokeFn = () => Promise<unknown>;
@@ -377,6 +388,52 @@ const withForce = (
     force: boolean | undefined,
 ): Record<string, unknown> => (force === undefined ? body : { ...body, force });
 
+const stripNullDashboardSlug = (
+    body: Record<string, unknown>,
+): Record<string, unknown> => {
+    if (body.dashboardSlug !== null) return body;
+    const { dashboardSlug: _omitted, ...rest } = body;
+    return rest;
+};
+
+const assertSafeSpaceTarget = async (
+    deps: ContentToolDeps,
+    projectUuid: string,
+    payload: Record<string, unknown>,
+    principal: AgentPrincipal,
+): Promise<void> => {
+    if ('access' in payload && payload.access !== undefined) {
+        throw new AgentToolError(
+            'POLICY_DENIED',
+            'Access policy changes are not permitted by the extension.',
+        );
+    }
+    const { spaceSlug } = payload;
+    if (
+        deps.verifySpaceAccess &&
+        typeof spaceSlug === 'string' &&
+        spaceSlug.trim().length > 0
+    ) {
+        const verdict = await deps.verifySpaceAccess(
+            projectUuid,
+            spaceSlug,
+            principal,
+        );
+        if (!verdict.exists) {
+            throw new AgentToolError(
+                'POLICY_DENIED',
+                'Target space does not exist; implicit space creation is not permitted.',
+            );
+        }
+        if (!verdict.writable) {
+            throw new AgentToolError(
+                'POLICY_DENIED',
+                'The current user lacks write permission on the target space.',
+            );
+        }
+    }
+};
+
 const requireDeps = (deps: ContentToolDeps): void => {
     if (!deps.contentFetch) {
         throw new AgentToolError(
@@ -440,17 +497,25 @@ export const createContentTools = (deps: ContentToolDeps) => {
                 options,
                 upsertContentOutputSchema,
                 async () => {
-                    await assertSchemaValid(deps.validators, 'chart', {
+                    await assertSafeSpaceTarget(
+                        deps,
+                        input.projectUuid,
+                        input.chart,
+                        principal,
+                    );
+                    const normalizedChart = stripNullDashboardSlug({
                         ...input.chart,
                         slug: input.slug,
                     });
+                    await assertSchemaValid(
+                        deps.validators,
+                        'chart',
+                        normalizedChart,
+                    );
                     const results = unwrapResults(
                         await deps.contentFetch(
                             {
-                                body: withForce(
-                                    { ...input.chart, slug: input.slug },
-                                    input.force,
-                                ),
+                                body: withForce(normalizedChart, input.force),
                                 method: 'POST',
                                 path: buildCodeChartItemPath(
                                     input.projectUuid,
@@ -476,6 +541,12 @@ export const createContentTools = (deps: ContentToolDeps) => {
                 options,
                 upsertContentOutputSchema,
                 async () => {
+                    await assertSafeSpaceTarget(
+                        deps,
+                        input.projectUuid,
+                        input.sqlChart,
+                        principal,
+                    );
                     await assertSchemaValid(deps.validators, 'sql_chart', {
                         ...input.sqlChart,
                         slug: input.slug,
@@ -544,6 +615,12 @@ export const createContentTools = (deps: ContentToolDeps) => {
                 options,
                 upsertContentOutputSchema,
                 async () => {
+                    await assertSafeSpaceTarget(
+                        deps,
+                        input.projectUuid,
+                        input.dashboard,
+                        principal,
+                    );
                     await assertSchemaValid(deps.validators, 'dashboard', {
                         ...input.dashboard,
                         slug: input.slug,
