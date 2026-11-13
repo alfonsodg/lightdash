@@ -37,7 +37,7 @@ WORKDIR /usr/app
 # Stage 1: system dependencies base
 # -----------------------------
 FROM pnpm-base AS base
-COPY scripts/docker/verify-dbt-image.sh /usr/local/bin/verify-dbt-image
+COPY --chmod=755 scripts/docker/verify-dbt-image.sh /usr/local/bin/verify-dbt-image
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
