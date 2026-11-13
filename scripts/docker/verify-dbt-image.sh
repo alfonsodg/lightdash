@@ -5,7 +5,11 @@ verify() {
     version="$1"
     shift
     python="/usr/local/dbt${version}/bin/python"
-    entrypoint="/usr/local/bin/dbt${version}"
+    if [ "$version" = 1.4 ]; then
+        entrypoint=/usr/local/bin/dbt
+    else
+        entrypoint="/usr/local/bin/dbt${version}"
+    fi
 
     test -x "$python"
     test -x "$entrypoint"
