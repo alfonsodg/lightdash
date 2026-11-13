@@ -198,6 +198,8 @@ jobs:
           format: table
           exit-code: '1'
           ignore-unfixed: true
+          scanners: vuln
+          timeout: 15m
           vuln-type: os,library
           severity: CRITICAL,HIGH
 
