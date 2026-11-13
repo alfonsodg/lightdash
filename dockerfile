@@ -195,6 +195,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
             "$python" -m pip install --upgrade 'Werkzeug==3.1.9'; \
         fi; \
     done; \
+    for version in 1.4 1.5; do \
+        metadata="$(find "/usr/local/dbt${version}/lib/python3.11/site-packages" -path '*/dbt_core-*.dist-info/METADATA' -print -quit)"; \
+        test -n "$metadata"; \
+        grep -qi '^Requires-Dist: werkzeug<3,>=1$' "$metadata"; \
+        sed -i 's/^Requires-Dist: werkzeug<3,>=1$/Requires-Dist: werkzeug<4,>=1/' "$metadata"; \
+    done; \
     for version in 1.5 1.6 1.7 1.8; do \
         python="/usr/local/dbt${version}/bin/python"; \
         "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
