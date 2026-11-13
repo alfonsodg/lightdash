@@ -203,6 +203,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     done; \
     for version in 1.5 1.6 1.7 1.8; do \
         python="/usr/local/dbt${version}/bin/python"; \
+        if [ "$version" = 1.5 ]; then \
+            "$python" -m pip install --upgrade 'boto3==1.44.2'; \
+        fi; \
         "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
         metadata="$(find "/usr/local/dbt${version}/lib/python3.11/site-packages" -path '*/dbt_redshift-*.dist-info/METADATA' -print -quit)"; \
         test -n "$metadata"; \
