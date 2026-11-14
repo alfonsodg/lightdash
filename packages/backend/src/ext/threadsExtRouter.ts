@@ -4,6 +4,7 @@ import {
     ConflictError,
     FeatureFlags,
     ForbiddenError,
+    LightdashError,
     NotFoundError,
     ParameterError,
     type Account,
@@ -15,6 +16,7 @@ import {
     allowApiKeyAuthentication,
     isAuthenticated,
 } from '../controllers/authentication';
+import Logger from '../logging/logger';
 import type { AgentBiService } from '../services/AgentBiService';
 import { resolvePreflightPrincipal } from './agentBiPreflight';
 
@@ -59,6 +61,47 @@ const toHttpError = (error: unknown): Error => {
         return error;
     }
     return new Error('Unknown error');
+};
+
+const SAFE_DOMAIN_ERROR_CODES = new Set([
+    'ALREADY_DECIDED',
+    'APPROVAL_REQUIRED',
+    'FORBIDDEN',
+    'INVALID_INPUT',
+    'NOT_FOUND',
+    'TOOL_ERROR',
+]);
+
+const GENERIC_SSE_ERROR_MESSAGE =
+    'An unexpected error occurred while processing the request.';
+
+const toSseErrorMessage = (error: unknown): string => {
+    if (error instanceof LightdashError) {
+        return error.message;
+    }
+    if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof (error as { code: unknown }).code === 'string' &&
+        SAFE_DOMAIN_ERROR_CODES.has((error as { code: string }).code)
+    ) {
+        if ((error as { code: string }).code === 'FORBIDDEN') {
+            return 'Forbidden';
+        }
+        return error instanceof Error ? error.message : 'Request failed.';
+    }
+    Logger.error('Unexpected error during thread SSE stream', {
+        error:
+            error instanceof Error
+                ? {
+                      message: error.message,
+                      name: error.name,
+                      stack: error.stack,
+                  }
+                : error,
+    });
+    return GENERIC_SSE_ERROR_MESSAGE;
 };
 
 const writeSseEvent = (res: Response, type: string, data: unknown): void => {
@@ -391,10 +434,7 @@ export const createThreadsExtRouter = (): Router => {
             }
             try {
                 writeSseEvent(res, 'error', {
-                    message:
-                        error instanceof Error
-                            ? error.message
-                            : 'Unknown error',
+                    message: toSseErrorMessage(error),
                     type: 'error',
                 });
                 res.end();

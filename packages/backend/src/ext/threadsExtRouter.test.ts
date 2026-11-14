@@ -1,4 +1,8 @@
-import { AuthorizationError, ForbiddenError } from '@lightdash/common';
+import {
+    AuthorizationError,
+    ForbiddenError,
+    ParameterError,
+} from '@lightdash/common';
 // Slice 3 (TDD red): threads HTTP API on /api/ext/v1/projects/:projectUuid/threads.
 // Live loopback through real HTTP; fake AgentBiService (no database, no LLM).
 import express, { type ErrorRequestHandler } from 'express';
@@ -412,6 +416,69 @@ describe('threadsExtRouter threads', () => {
                 },
             );
             expect(approvalRes.status).toBe(403);
+        } finally {
+            await stopApp(server);
+        }
+    });
+
+    it('sanitizes unexpected mid-stream errors in SSE error events while preserving domain errors', async () => {
+        const server = await startApp({
+            service: {
+                isProjectAuditor: () => false,
+                requireProjectViewer: async () => ({
+                    organizationUuid: '11111111-1111-4111-8111-111111111111',
+                }),
+                runThreadTurn: async ({
+                    onEvent,
+                    userText,
+                }: {
+                    onEvent: (event: unknown) => void;
+                    userText: string;
+                }) => {
+                    onEvent({
+                        data: { threadUuid: THREAD_UUID },
+                        type: 'status',
+                    });
+                    if (userText === 'domain-error') {
+                        throw new ParameterError('Invalid chart query');
+                    }
+                    throw new Error(
+                        'pg: relation "secret_table" does not exist at 10.0.0.5',
+                    );
+                },
+            },
+            user: { ...godMode() },
+        });
+        try {
+            const unexpectedRes = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages/stream`,
+                {
+                    body: JSON.stringify({ userText: 'boom' }),
+                    headers: { 'content-type': 'application/json' },
+                    method: 'POST',
+                },
+            );
+            expect(unexpectedRes.status).toBe(200);
+            const unexpectedBody = await unexpectedRes.text();
+            expect(unexpectedBody).toContain('event: error');
+            expect(unexpectedBody).not.toContain('secret_table');
+            expect(unexpectedBody).not.toContain('10.0.0.5');
+            expect(unexpectedBody).toContain(
+                'An unexpected error occurred while processing the request.',
+            );
+
+            const domainRes = await fetch(
+                `${baseOf(server)}/api/ext/v1/projects/${PROJECT_UUID}/threads/${THREAD_UUID}/messages/stream`,
+                {
+                    body: JSON.stringify({ userText: 'domain-error' }),
+                    headers: { 'content-type': 'application/json' },
+                    method: 'POST',
+                },
+            );
+            expect(domainRes.status).toBe(200);
+            const domainBody = await domainRes.text();
+            expect(domainBody).toContain('event: error');
+            expect(domainBody).toContain('Invalid chart query');
         } finally {
             await stopApp(server);
         }
