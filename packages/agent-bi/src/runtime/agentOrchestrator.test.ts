@@ -486,4 +486,51 @@ describe('runAgentTurn', () => {
         expect(outcome.status).toBe('completed');
         expect(outcome.text).toBe('Recovered.');
     });
+
+    it('preserves valid OpenAI message roles without duplicating assistant toolCalls', async () => {
+        const { deps, llmCalls } = baseDeps([
+            toolResult('call_1', 'list_explores', '{}'),
+            textResult('Done.'),
+        ]);
+        await runAgentTurn({
+            ...deps,
+            onEvent: () => {},
+            userText: 'List explores.',
+        });
+
+        expect(llmCalls).toHaveLength(2);
+        const secondCall = llmCalls[1] as {
+            messages: Array<{ role?: string; toolCalls?: unknown[] }>;
+        };
+        const roles = secondCall.messages.map((message) => message.role);
+        expect(roles).toEqual(['system', 'user', 'assistant', 'tool']);
+        expect(
+            secondCall.messages.every((message) => message.role !== undefined),
+        ).toBe(true);
+    });
+
+    it('includes assistant role on resumeApproved toolCalls history', async () => {
+        const { deps, llmCalls } = baseDeps([textResult('Saved.')]);
+        await runAgentTurn({
+            ...deps,
+            onEvent: () => {},
+            resumeApproved: {
+                approvalUuid: 'appr-1',
+                input: { slug: 'sales-chart' },
+                tool: 'upsert_chart_as_code',
+            },
+            userText: 'Save the chart.',
+        });
+
+        expect(llmCalls).toHaveLength(1);
+        const firstCall = llmCalls[0] as {
+            messages: Array<{ role?: string }>;
+        };
+        expect(firstCall.messages.map((message) => message.role)).toEqual([
+            'system',
+            'user',
+            'assistant',
+            'tool',
+        ]);
+    });
 });

@@ -368,7 +368,10 @@ export const runAgentTurn = async (
         name: entry.name,
     }));
 
-    const history: LlmChatMessage[] = [...(input.history ?? [])];
+    const history: LlmChatMessage[] = [
+        ...(input.history ?? []),
+        { content: input.userText, role: 'user' },
+    ];
     let catalogVisibilitySnapshot: CatalogVisibility | undefined;
     let catalogVisibilitySeen = false;
     const refreshCatalogContext = async () => {
@@ -391,10 +394,27 @@ export const runAgentTurn = async (
         tool: string,
         toolInput: unknown,
         toolCallId: string,
+        recordAssistantCall = false,
     ): Promise<{ ok: boolean }> => {
         await input.authorizeContext?.();
         const catalogContext = await refreshCatalogContext();
         emit({ id: toolCallId, input: toolInput, tool, type: 'tool_call' });
+        const pushAssistantCallIfNeeded = (): void => {
+            if (!recordAssistantCall) {
+                return;
+            }
+            history.push({
+                content: null,
+                role: 'assistant',
+                toolCalls: [
+                    {
+                        arguments: JSON.stringify(toolInput ?? null),
+                        id: toolCallId,
+                        name: tool,
+                    },
+                ],
+            });
+        };
         let result: unknown;
         try {
             result = await input.tools.execute(
@@ -409,17 +429,7 @@ export const runAgentTurn = async (
             const message =
                 error instanceof Error ? error.message : 'Tool failed.';
             emit({ id: toolCallId, ok: false, tool, type: 'tool_result' });
-            history.push({
-                content: null,
-                toolCalls: [
-                    {
-                        arguments: JSON.stringify(toolInput ?? null),
-                        id: toolCallId,
-                        name: tool,
-                    },
-                ],
-                role: 'assistant',
-            });
+            pushAssistantCallIfNeeded();
             history.push({
                 content: `Error: ${message}`,
                 role: 'tool',
@@ -434,16 +444,7 @@ export const runAgentTurn = async (
         if (artifact !== null) {
             emit({ ...artifact, type: 'chart_artifact' });
         }
-        history.push({
-            content: null,
-            toolCalls: [
-                {
-                    arguments: JSON.stringify(toolInput ?? null),
-                    id: toolCallId,
-                    name: tool,
-                },
-            ],
-        } as LlmChatMessage);
+        pushAssistantCallIfNeeded();
         history.push({
             content: toUntrustedToolText(tool, result),
             role: 'tool',
@@ -486,6 +487,7 @@ export const runAgentTurn = async (
             resumed.tool,
             resumed.input,
             resumed.approvalUuid,
+            true,
         );
     }
 
@@ -517,7 +519,6 @@ export const runAgentTurn = async (
                     role: 'system',
                 },
                 ...history,
-                { content: input.userText, role: 'user' },
             ],
             model: input.model,
             tools: llmTools.map((tool) => ({
