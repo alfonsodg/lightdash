@@ -10,6 +10,7 @@ import {
     createToolCatalog,
     defaultCapabilityToggles,
     defaultExportPollConfig,
+    getAgentBiConfig,
     hashContent,
     parseApprovalContent,
     requestApproval,
@@ -167,9 +168,10 @@ export class AgentBiService extends BaseService {
         };
         const catalogSearch: CatalogFieldSearcher = {
             search: async (query, visibility, limit, projectUuid) => {
+                const { catalogIndexLimit } = getAgentBiConfig();
                 const { rows } = await this.agentBiModel.query(
-                    'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT 2000',
-                    [projectUuid],
+                    'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT $2',
+                    [projectUuid, catalogIndexLimit],
                 );
                 const hits = searchCatalogDocuments(
                     rows.map(toCatalogDocument),
@@ -410,12 +412,13 @@ export class AgentBiService extends BaseService {
     async searchCatalogForProject(
         projectUuid: string,
         query: string,
-        limit = 8,
+        limit = getAgentBiConfig().catalogSearchLimit,
         visibility: CatalogVisibility = { allowedExplores: new Set() },
     ): Promise<CatalogDocument[]> {
+        const { catalogIndexLimit } = getAgentBiConfig();
         const { rows } = await this.agentBiModel.query(
-            'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT 2000',
-            [projectUuid],
+            'SELECT project_uuid, resource_type, resource_uuid, content, explore_name, table_name, field_name, field_kind FROM agent_ext.catalog_index WHERE project_uuid = $1 LIMIT $2',
+            [projectUuid, catalogIndexLimit],
         );
         const documents = rows.map(toCatalogDocument);
         return searchCatalogDocuments(
@@ -442,15 +445,12 @@ export class AgentBiService extends BaseService {
     }
 
     buildLlmClient(): LlmChatClient {
-        const timeoutMs = Number(process.env.AGENT_LLM_TIMEOUT_MS ?? '');
+        const config = getAgentBiConfig();
         return createOpenAiChatClient({
-            apiKey: process.env.AGENT_LLM_API_KEY ?? '',
-            baseUrl: process.env.AGENT_LLM_BASE_URL ?? '',
-            model: process.env.AGENT_LLM_MODEL || undefined,
-            timeoutMs:
-                Number.isInteger(timeoutMs) && timeoutMs > 0
-                    ? timeoutMs
-                    : 60_000,
+            apiKey: config.llmApiKey ?? '',
+            baseUrl: config.llmEndpoint ?? '',
+            model: config.model,
+            timeoutMs: config.llmTimeoutMs,
         });
     }
 
@@ -574,6 +574,8 @@ export class AgentBiService extends BaseService {
                 ? ''
                 : JSON.stringify(input.resumeApproved.input ?? null));
         const { getCatalogVisibility } = input;
+        const { catalogSearchLimit, model: configuredModel } =
+            getAgentBiConfig();
         const getCatalogContext = getCatalogVisibility
             ? async () => {
                   const visibility = await getCatalogVisibility();
@@ -581,7 +583,7 @@ export class AgentBiService extends BaseService {
                       catalogMatches: await this.searchCatalogForProject(
                           input.projectUuid,
                           catalogQuery,
-                          8,
+                          catalogSearchLimit,
                           visibility,
                       ),
                       visibility,
@@ -593,7 +595,7 @@ export class AgentBiService extends BaseService {
             : await this.searchCatalogForProject(
                   input.projectUuid,
                   catalogQuery,
-                  8,
+                  catalogSearchLimit,
                   { allowedExplores: new Set() },
               );
         const catalog = createToolCatalog(
@@ -617,7 +619,7 @@ export class AgentBiService extends BaseService {
             history,
             llm: input.llm ?? this.buildLlmClient(),
             maxTurns: input.maxTurns,
-            model: input.model ?? process.env.AGENT_LLM_MODEL ?? 'default',
+            model: input.model ?? configuredModel ?? '',
             pinnedContext: input.pinnedContext ?? null,
             policyToggles: defaultCapabilityToggles(),
             principal: input.principal,

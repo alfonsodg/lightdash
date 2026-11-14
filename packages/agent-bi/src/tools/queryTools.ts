@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { recordAuditEvent, sanitizeAuditInput } from '../audit/auditLogger';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
+import { getAgentBiConfig } from '../config/agentBiConfig';
 import type {
     LightdashV2Client,
     PollOptions,
@@ -56,8 +57,6 @@ export const TOOL_CAPABILITIES: Record<QueryToolName, QueryCapability> = {
 
 const MAX_NAME_CHARS = 256;
 const MAX_SQL_CHARS = 20000;
-const DEFAULT_COMPOSE_MAX_QUERIES = 10;
-const DEFAULT_METRIC_QUERY_LIMIT = 100;
 
 const nameSchema = z.string().trim().min(1).max(MAX_NAME_CHARS);
 
@@ -390,7 +389,8 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                 runComposePipelineOutputSchema,
                 async () => {
                     const maxQueries =
-                        deps.composeMaxQueries ?? DEFAULT_COMPOSE_MAX_QUERIES;
+                        deps.composeMaxQueries ??
+                        getAgentBiConfig().composeMaxQueries;
                     if (input.queries.length > maxQueries) {
                         throw new AgentToolError(
                             'INVALID_INPUT',
@@ -550,7 +550,7 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                 dimensions: input.dimensions ?? [],
                 exploreName: input.exploreName,
                 filters: input.filters ?? {},
-                limit: input.limit ?? DEFAULT_METRIC_QUERY_LIMIT,
+                limit: input.limit ?? getAgentBiConfig().metricQueryLimit,
                 metrics: input.metrics ?? [],
                 sorts: input.sorts ?? [],
                 tableCalculations: [],

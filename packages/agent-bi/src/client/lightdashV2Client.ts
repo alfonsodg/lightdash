@@ -4,6 +4,7 @@
 // polled with getQueryResults until it reaches a terminal status. A queued
 // queryUuid is never treated as a result. No deprecated v1 route is
 // referenced anywhere in this module.
+import { getAgentBiConfig } from '../config/agentBiConfig';
 
 export type V2LifecycleStatus =
     | 'pending'
@@ -45,15 +46,9 @@ export class LightdashV2ClientError extends Error {
 
 // White-label: server text is data, never our wording — scrub brand names
 // before surfacing it in an error message.
+
 const scrubBrand = (value: string): string =>
     value.replace(/lightdash/gi, 'server');
-
-const DEFAULT_MAX_ROWS = 1000;
-const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_POLL_INITIAL_DELAY_MS = 250;
-const DEFAULT_POLL_MAX_DELAY_MS = 5_000;
-const DEFAULT_POLL_MAX_ATTEMPTS = 60;
-const DEFAULT_RESULTS_PAGE_SIZE = 500;
 
 export type FetchImpl = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -265,16 +260,17 @@ const resolveConfig = (options: LightdashV2ClientOptions): ResolvedConfig => {
             'A base URL is required',
         );
     }
+    const config = getAgentBiConfig();
     return {
         baseUrl: options.baseUrl.replace(/\/+$/, ''),
         headers: { ...(options.headers ?? {}) },
         fetchImpl,
-        maxRows: options.maxRows ?? DEFAULT_MAX_ROWS,
-        timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        maxRows: options.maxRows ?? config.maxRows,
+        timeoutMs: options.timeoutMs ?? config.timeoutMs,
         pollInitialDelayMs:
-            options.pollInitialDelayMs ?? DEFAULT_POLL_INITIAL_DELAY_MS,
-        pollMaxDelayMs: options.pollMaxDelayMs ?? DEFAULT_POLL_MAX_DELAY_MS,
-        pollMaxAttempts: options.pollMaxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS,
+            options.pollInitialDelayMs ?? config.v2PollInitialDelayMs,
+        pollMaxDelayMs: options.pollMaxDelayMs ?? config.v2PollMaxDelayMs,
+        pollMaxAttempts: options.pollMaxAttempts ?? config.v2PollMaxAttempts,
         sleep: options.sleepImpl ?? defaultSleep,
         now: options.nowImpl ?? Date.now,
         cancelOnAbort: options.cancelOnAbort ?? true,
@@ -465,7 +461,7 @@ export const createLightdashV2Client = (
     const config = resolveConfig(options);
 
     const effectivePageSize = (pageSize?: number): number => {
-        const requested = pageSize ?? DEFAULT_RESULTS_PAGE_SIZE;
+        const requested = pageSize ?? getAgentBiConfig().resultsPageSize;
         return Math.max(1, Math.min(requested, config.maxRows));
     };
 

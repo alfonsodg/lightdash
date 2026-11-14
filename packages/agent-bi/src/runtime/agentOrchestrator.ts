@@ -2,6 +2,7 @@
 // transport-agnostic: it emits events and the host renders them (SSE,
 // stdio, tests). Policy stays with the tools; approvals suspend the run.
 import { z } from 'zod';
+import { getAgentBiConfig } from '../config/agentBiConfig';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
 import type {
     CatalogDocument,
@@ -119,8 +120,6 @@ const NEEDS_APPROVAL = new Set<string>([
     'upsert_dashboard_as_code',
     'upsert_sql_chart_as_code',
 ]);
-
-const DEFAULT_MAX_TURNS = 8;
 
 const MAX_TOOL_TEXT_CHARS = 4000;
 const MAX_ARTIFACT_ROWS = 50;
@@ -335,7 +334,7 @@ export const runAgentTurn = async (
     },
 ): Promise<OrchestratorOutcome> => {
     const emit = input.onEvent;
-    const maxTurns = input.maxTurns ?? DEFAULT_MAX_TURNS;
+    const maxTurns = input.maxTurns ?? getAgentBiConfig().maxTurns;
     const usage = { completionTokens: 0, promptTokens: 0 };
     const trackUsage = (delta: {
         completionTokens: number;

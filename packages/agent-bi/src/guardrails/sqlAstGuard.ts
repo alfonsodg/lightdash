@@ -16,6 +16,7 @@
 // stays dependency-free and applies the strictest rule of every
 // supported dialect instead.
 import type { AgentPrincipal } from '../auth/agentPrincipal';
+import { getAgentBiConfig } from '../config/agentBiConfig';
 
 export const DEFAULT_SQL_GUARD_MAX_ROWS = 1000;
 
@@ -340,7 +341,7 @@ export function evaluateSqlGuard(
     }
     const maxRows =
         options.maxRows === undefined
-            ? DEFAULT_SQL_GUARD_MAX_ROWS
+            ? getAgentBiConfig().maxRows
             : options.maxRows;
     if (
         typeof maxRows !== 'number' ||

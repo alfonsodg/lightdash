@@ -15,6 +15,7 @@ import {
     type AuditVerdictSource,
 } from '../audit/auditLogger';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
+import { getAgentBiConfig } from '../config/agentBiConfig';
 import { evaluateSqlGuard } from '../guardrails/sqlAstGuard';
 import { evaluateCapability } from '../policy/capabilityPolicy';
 import type { ChartSqlProvenance, RawSqlGuardrails } from '../tools/queryTools';
@@ -185,12 +186,15 @@ export interface ExportPollConfig {
     timeoutMs: number;
 }
 
-export const defaultExportPollConfig = (): ExportPollConfig => ({
-    initialDelayMs: 500,
-    maxAttempts: 30,
-    maxDelayMs: 5_000,
-    timeoutMs: 60_000,
-});
+export const defaultExportPollConfig = (): ExportPollConfig => {
+    const config = getAgentBiConfig();
+    return {
+        initialDelayMs: config.exportPollInitialDelayMs,
+        maxAttempts: config.exportPollMaxAttempts,
+        maxDelayMs: config.exportPollMaxDelayMs,
+        timeoutMs: config.exportTimeoutMs,
+    };
+};
 
 export interface ExportToolDeps extends AgentToolBaseDeps {
     authorizeDeliveryTargets?: (input: {
