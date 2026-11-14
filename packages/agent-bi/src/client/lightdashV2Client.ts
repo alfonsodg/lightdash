@@ -1,464 +1,55 @@
-// Typed client over the v2 async query APIs (Slice B).
-//
-// Poll-then-fetch only: every execute call returns a queryUuid that must be
-// polled with getQueryResults until it reaches a terminal status. A queued
-// queryUuid is never treated as a result. No deprecated v1 route is
-// referenced anywhere in this module.
 import { getAgentBiConfig } from '../config/agentBiConfig';
+import {
+    assertId,
+    assertNonEmpty,
+    checkHttpStatus,
+    parseQueryResult,
+    requestJson,
+    resolveV2Config,
+    scrubBrand,
+    throwIfAborted,
+    unwrapResults,
+} from './lightdashV2Http';
+import {
+    LightdashV2ClientError,
+    type LightdashV2Client,
+    type LightdashV2ClientOptions,
+    type PollOptions,
+    type V2ExecuteResult,
+    type V2LifecycleStatus,
+    type V2QueryResult,
+    type V2ReadyPage,
+} from './lightdashV2Types';
 
-export type V2LifecycleStatus =
-    | 'pending'
-    | 'queued'
-    | 'executing'
-    | 'cancelled'
-    | 'ready'
-    | 'error'
-    | 'expired';
-
-export type V2ClientErrorKind =
-    | 'bad_request'
-    | 'unauthorized'
-    | 'forbidden'
-    | 'not_found'
-    | 'server'
-    | 'timeout'
-    | 'aborted'
-    | 'query_error'
-    | 'query_expired'
-    | 'query_cancelled'
-    | 'network';
-
-export class LightdashV2ClientError extends Error {
-    readonly kind: V2ClientErrorKind;
-    readonly status: number | null;
-
-    constructor(
-        kind: V2ClientErrorKind,
-        message: string,
-        status: number | null = null,
-    ) {
-        super(message);
-        this.name = 'LightdashV2ClientError';
-        this.kind = kind;
-        this.status = status;
-    }
-}
-
-// White-label: server text is data, never our wording — scrub brand names
-// before surfacing it in an error message.
-
-const scrubBrand = (value: string): string =>
-    value.replace(/lightdash/gi, 'server');
-
-export type FetchImpl = (url: string, init: RequestInit) => Promise<Response>;
-
-export interface LightdashV2ClientOptions {
-    baseUrl: string;
-    // Caller-supplied headers (personal token, session cookie, ...). The
-    // client never invents an auth scheme; tokens stay out of errors.
-    headers?: Record<string, string>;
-    fetchImpl?: FetchImpl;
-    // Row cap applied to every pageSize (AGENT_MAX_ROWS semantics).
-    maxRows?: number;
-    // Overall deadline per poll/run call (AGENT_QUERY_TIMEOUT_MS semantics).
-    timeoutMs?: number;
-    pollInitialDelayMs?: number;
-    pollMaxDelayMs?: number;
-    pollMaxAttempts?: number;
-    // Injected for deterministic unit tests (no real timers, no real clock).
-    sleepImpl?: (ms: number) => Promise<void>;
-    nowImpl?: () => number;
-    // Best-effort POST /cancel when a poll aborts or times out.
-    cancelOnAbort?: boolean;
-}
-
-export interface V2MetricQueryBody {
-    exploreName: string;
-    dimensions: string[];
-    metrics: string[];
-    filters: Record<string, unknown>;
-    sorts: Array<{ fieldId: string; descending?: boolean | null }>;
-    limit: number;
-    tableCalculations: [];
-    timezone?: string | null;
-}
-
-export interface V2FieldValueSearchBody {
-    table: string;
-    fieldId: string;
-    search: string;
-    limit?: number;
-    filters?: Record<string, unknown>;
-}
-
-export interface V2UnderlyingDataBody {
-    underlyingDataSourceQueryUuid: string;
-    underlyingDataItemId?: string;
-    filters: Record<string, unknown>;
-    limit?: number | null;
-    sorts?: Array<{ fieldId: string; descending?: boolean | null }>;
-}
-
-export interface V2SavedChartBody {
-    chartUuid: string;
-    versionUuid?: string;
-    limit?: number | null;
-}
-
-export interface V2DashboardChartBody {
-    chartUuid: string;
-    tileUuid: string;
-    dashboardUuid: string;
-    dashboardFilters: Record<string, unknown>;
-    dashboardSorts?: Array<{ fieldId: string; descending?: boolean | null }>;
-    limit?: number | null;
-}
-
-export interface V2SqlBody {
-    sql: string;
-    limit?: number;
-}
-
-export interface V2ComposeBody {
-    queries: ReadonlyArray<Record<string, unknown>>;
-    parameters?: Record<string, unknown>;
-    invalidateCache?: boolean;
-}
-
-export interface V2ExecuteResult {
-    queryUuid: string;
-}
-
-export interface V2ComposeExecuteResult {
-    queries: Array<{ queryUuid: string }>;
-}
-
-export type V2ResultRow = Record<string, unknown>;
-
-export interface V2ReadyPage {
-    status: 'ready';
-    queryUuid: string;
-    columns: Record<string, unknown>;
-    rows: V2ResultRow[];
-    page: number;
-    pageSize: number;
-    totalPageCount: number | null;
-    totalResults: number | null;
-    nextPage: number | null;
-    previousPage: number | null;
-}
-
-export interface V2PendingResult {
-    status: 'pending' | 'queued' | 'executing' | 'cancelled';
-    queryUuid: string;
-}
-
-export interface V2FailedResult {
-    status: 'error' | 'expired';
-    queryUuid: string;
-    error: string | null;
-}
-
-export type V2QueryResult = V2ReadyPage | V2PendingResult | V2FailedResult;
-
-export interface V2SourceQueryStatus {
-    queryUuid: string;
-    status: V2LifecycleStatus;
-    error: string | null;
-}
-
-export interface PollOptions {
-    signal?: AbortSignal | null;
-    timeoutMs?: number;
-    page?: number;
-    pageSize?: number;
-}
-
-export interface LightdashV2Client {
-    executeMetricQuery(
-        projectUuid: string,
-        query: V2MetricQueryBody,
-        extra?: { limit?: number | null },
-    ): Promise<V2ExecuteResult>;
-    executeFieldValueSearch(
-        projectUuid: string,
-        body: V2FieldValueSearchBody,
-    ): Promise<V2ExecuteResult>;
-    executeUnderlyingData(
-        projectUuid: string,
-        body: V2UnderlyingDataBody,
-    ): Promise<V2ExecuteResult>;
-    executeSavedChart(
-        projectUuid: string,
-        body: V2SavedChartBody,
-    ): Promise<V2ExecuteResult>;
-    executeDashboardChart(
-        projectUuid: string,
-        body: V2DashboardChartBody,
-    ): Promise<V2ExecuteResult>;
-    executeSql(projectUuid: string, body: V2SqlBody): Promise<V2ExecuteResult>;
-    executeComposeQueries(
-        projectUuid: string,
-        body: V2ComposeBody,
-    ): Promise<V2ComposeExecuteResult>;
-    getQueryResults(
-        projectUuid: string,
-        queryUuid: string,
-        options?: {
-            page?: number;
-            pageSize?: number;
-            signal?: AbortSignal | null;
-        },
-    ): Promise<V2QueryResult>;
-    getSourceQueryStatus(
-        projectUuid: string,
-        queryUuids: string[],
-        signal?: AbortSignal | null,
-    ): Promise<V2SourceQueryStatus[]>;
-    cancelQuery(projectUuid: string, queryUuid: string): Promise<void>;
-    pollQueryToReady(
-        projectUuid: string,
-        queryUuid: string,
-        options?: PollOptions,
-    ): Promise<V2ReadyPage>;
-    runMetricQuery(
-        projectUuid: string,
-        query: V2MetricQueryBody,
-        options?: PollOptions & { limit?: number | null },
-    ): Promise<V2ReadyPage>;
-    runSqlQuery(
-        projectUuid: string,
-        body: V2SqlBody,
-        options?: PollOptions,
-    ): Promise<V2ReadyPage>;
-}
-
-type ResolvedConfig = {
-    baseUrl: string;
-    headers: Record<string, string>;
-    fetchImpl: FetchImpl;
-    maxRows: number;
-    timeoutMs: number;
-    pollInitialDelayMs: number;
-    pollMaxDelayMs: number;
-    pollMaxAttempts: number;
-    sleep: (ms: number) => Promise<void>;
-    now: () => number;
-    cancelOnAbort: boolean;
-};
-
-const defaultSleep = (ms: number): Promise<void> =>
-    new Promise((resolve) => {
-        setTimeout(resolve, ms);
-    });
-
-const resolveConfig = (options: LightdashV2ClientOptions): ResolvedConfig => {
-    const fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
-    if (!options.baseUrl || !options.baseUrl.trim()) {
-        throw new LightdashV2ClientError(
-            'bad_request',
-            'A base URL is required',
-        );
-    }
-    const config = getAgentBiConfig();
-    return {
-        baseUrl: options.baseUrl.replace(/\/+$/, ''),
-        headers: { ...(options.headers ?? {}) },
-        fetchImpl,
-        maxRows: options.maxRows ?? config.maxRows,
-        timeoutMs: options.timeoutMs ?? config.timeoutMs,
-        pollInitialDelayMs:
-            options.pollInitialDelayMs ?? config.v2PollInitialDelayMs,
-        pollMaxDelayMs: options.pollMaxDelayMs ?? config.v2PollMaxDelayMs,
-        pollMaxAttempts: options.pollMaxAttempts ?? config.v2PollMaxAttempts,
-        sleep: options.sleepImpl ?? defaultSleep,
-        now: options.nowImpl ?? Date.now,
-        cancelOnAbort: options.cancelOnAbort ?? true,
-    };
-};
-
-const assertId = (value: string, label: string): void => {
-    if (!value || !value.trim()) {
-        throw new LightdashV2ClientError(
-            'bad_request',
-            `A ${label} is required`,
-        );
-    }
-};
-
-const assertNonEmpty = (value: string, label: string): void =>
-    assertId(value, label);
-
-const throwIfAborted = (signal?: AbortSignal | null): void => {
-    if (signal?.aborted) {
-        throw new LightdashV2ClientError('aborted', 'The request was aborted');
-    }
-};
-
-const mapHttpStatus = (status: number): V2ClientErrorKind => {
-    if (status === 401) return 'unauthorized';
-    if (status === 403) return 'forbidden';
-    if (status === 404) return 'not_found';
-    if (status >= 500) return 'server';
-    return 'bad_request';
-};
-
-// One HTTP call with a caller signal plus a deadline-derived timeout.
-// Builds its own controller so fakes and old runtimes need no
-// AbortSignal.any / AbortSignal.timeout support.
-const requestJson = async (
-    config: ResolvedConfig,
-    method: string,
-    path: string,
-    body: unknown,
-    signal: AbortSignal | null | undefined,
-    timeoutMs: number | undefined,
-): Promise<{ status: number; json: unknown }> => {
-    const controller = new AbortController();
-    const onAbort = (): void => controller.abort();
-    signal?.addEventListener('abort', onAbort, { once: true });
-    const timer =
-        timeoutMs === undefined
-            ? undefined
-            : setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        const response = await config.fetchImpl(`${config.baseUrl}${path}`, {
-            method,
-            headers: {
-                'Content-Type': 'application/json',
-                ...config.headers,
-            },
-            body: body === undefined ? undefined : JSON.stringify(body),
-            signal: controller.signal,
-        });
-        const text = await response.text();
-        let json: unknown = null;
-        if (text) {
-            try {
-                json = JSON.parse(text) as unknown;
-            } catch {
-                json = null;
-            }
-        }
-        return { status: response.status, json };
-    } catch (error) {
-        if (controller.signal.aborted || signal?.aborted) {
-            throw new LightdashV2ClientError(
-                'aborted',
-                'The request was aborted',
-            );
-        }
-        throw new LightdashV2ClientError(
-            'network',
-            'The request failed before reaching the server',
-        );
-    } finally {
-        signal?.removeEventListener('abort', onAbort);
-        if (timer !== undefined) {
-            clearTimeout(timer);
-        }
-    }
-};
-
-const unwrapResults = <T>(json: unknown, status: number): T => {
-    if (json !== null && typeof json === 'object' && 'results' in json) {
-        return (json as { results: T }).results;
-    }
-    if (json !== null && typeof json === 'object' && 'status' in json) {
-        const envelope = json as { status?: unknown };
-        if (envelope.status === 'error') {
-            throw new LightdashV2ClientError(
-                mapHttpStatus(status),
-                `The request failed (status ${status})`,
-                status,
-            );
-        }
-    }
-    return json as T;
-};
-
-const checkHttpStatus = (status: number): void => {
-    if (status >= 200 && status < 300) {
-        return;
-    }
-    throw new LightdashV2ClientError(
-        mapHttpStatus(status),
-        `The request failed (status ${status})`,
-        status,
-    );
-};
-
-const parseQueryResult = (json: unknown): V2QueryResult => {
-    if (json === null || typeof json !== 'object') {
-        throw new LightdashV2ClientError(
-            'server',
-            'The server returned an unexpected response',
-        );
-    }
-    const record = json as Record<string, unknown>;
-    const { status, queryUuid } = record;
-    if (typeof queryUuid !== 'string' || !queryUuid) {
-        throw new LightdashV2ClientError(
-            'server',
-            'The server returned an unexpected response',
-        );
-    }
-    if (status === 'ready') {
-        const { page, pageSize } = record;
-        return {
-            status: 'ready',
-            queryUuid,
-            columns:
-                record.columns !== null && typeof record.columns === 'object'
-                    ? (record.columns as Record<string, unknown>)
-                    : {},
-            rows: Array.isArray(record.rows)
-                ? (record.rows as V2ResultRow[])
-                : [],
-            page: typeof page === 'number' ? page : 1,
-            pageSize: typeof pageSize === 'number' ? pageSize : 0,
-            totalPageCount:
-                typeof record.totalPageCount === 'number'
-                    ? record.totalPageCount
-                    : null,
-            totalResults:
-                typeof record.totalResults === 'number'
-                    ? record.totalResults
-                    : null,
-            nextPage:
-                typeof record.nextPage === 'number' ? record.nextPage : null,
-            previousPage:
-                typeof record.previousPage === 'number'
-                    ? record.previousPage
-                    : null,
-        };
-    }
-    if (
-        status === 'pending' ||
-        status === 'queued' ||
-        status === 'executing' ||
-        status === 'cancelled'
-    ) {
-        return { status, queryUuid };
-    }
-    if (status === 'error' || status === 'expired') {
-        const { error } = record;
-        return {
-            status,
-            queryUuid,
-            error: typeof error === 'string' ? error : null,
-        };
-    }
-    throw new LightdashV2ClientError(
-        'server',
-        'The server returned an unexpected response',
-    );
-};
+export {
+    LightdashV2ClientError,
+    type FetchImpl,
+    type LightdashV2Client,
+    type LightdashV2ClientOptions,
+    type PollOptions,
+    type V2ClientErrorKind,
+    type V2ComposeBody,
+    type V2ComposeExecuteResult,
+    type V2DashboardChartBody,
+    type V2ExecuteResult,
+    type V2FailedResult,
+    type V2FieldValueSearchBody,
+    type V2LifecycleStatus,
+    type V2MetricQueryBody,
+    type V2PendingResult,
+    type V2QueryResult,
+    type V2ReadyPage,
+    type V2ResultRow,
+    type V2SavedChartBody,
+    type V2SourceQueryStatus,
+    type V2SqlBody,
+    type V2UnderlyingDataBody,
+} from './lightdashV2Types';
 
 export const createLightdashV2Client = (
     options: LightdashV2ClientOptions,
 ): LightdashV2Client => {
-    const config = resolveConfig(options);
+    const config = resolveV2Config(options);
 
     const effectivePageSize = (pageSize?: number): number => {
         const requested = pageSize ?? getAgentBiConfig().resultsPageSize;

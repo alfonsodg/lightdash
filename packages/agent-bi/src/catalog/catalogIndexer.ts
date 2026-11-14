@@ -1,137 +1,49 @@
-// Semantic catalog indexer (Slice A).
-//
-// Syncs compiled explore metadata (explores, dimensions, metrics,
-// descriptions, time dimensions) into `agent_ext.catalog_index` through an
-// injected store, so this package stays driver-free. Retrieval-time
-// visibility filtering consumes caller-supplied allow-lists; the indexer
-// never fetches permissions itself.
-
-import { createHash } from 'node:crypto';
 import {
-    AGENT_EXT_SCHEMA,
-    AGENT_EXT_TABLES,
-    resolveSchemaName,
-} from '../db/schema';
+    assertProjectUuid,
+    CatalogIndexError,
+    hashContent,
+    uuidFromParts,
+    type CatalogDimensionInput,
+    type CatalogDocument,
+    type CatalogExistingRow,
+    type CatalogExploreInput,
+    type CatalogIndexKey,
+    type CatalogIndexStore,
+    type CatalogMetricInput,
+    type CatalogResourceType,
+    type CatalogSyncResult,
+    type CatalogTableInput,
+} from './catalogTypes';
 
-export type CatalogResourceType = 'explore' | 'dimension' | 'metric';
-
-export interface CatalogDimensionInput {
-    name: string;
-    label?: string | null;
-    description?: string | null;
-    type: string;
-    timeInterval?: string | null;
-    hidden?: boolean | null;
-}
-
-export interface CatalogMetricInput {
-    name: string;
-    label?: string | null;
-    description?: string | null;
-    type: string;
-    hidden?: boolean | null;
-}
-
-export interface CatalogTableInput {
-    name: string;
-    label?: string | null;
-    description?: string | null;
-    dimensions: Record<string, CatalogDimensionInput>;
-    metrics: Record<string, CatalogMetricInput>;
-}
-
-export interface CatalogExploreInput {
-    name: string;
-    label?: string | null;
-    description?: string | null;
-    tags?: readonly string[] | null;
-    baseTable: string;
-    tables: Record<string, CatalogTableInput>;
-}
-
-export interface CatalogDocument {
-    projectUuid: string;
-    resourceType: CatalogResourceType;
-    resourceUuid: string;
-    exploreName: string;
-    tableName: string | null;
-    fieldName: string | null;
-    fieldKind: 'dimension' | 'metric' | null;
-    content: string;
-    contentHash: string;
-    embedding: readonly number[] | null;
-}
-
-export interface CatalogExistingRow {
-    resourceType: string;
-    resourceUuid: string;
-    content: string;
-}
-
-export interface CatalogIndexKey {
-    resourceType: string;
-    resourceUuid: string;
-}
-
-// Driver-free store surface; any driver implements these three calls.
-export interface CatalogIndexStore {
-    listExisting(projectUuid: string): Promise<CatalogExistingRow[]>;
-    upsertRows(rows: CatalogDocument[]): Promise<void>;
-    deleteKeys(keys: CatalogIndexKey[]): Promise<void>;
-}
-
-// Visibility allow-lists supplied by the caller (built from host CASL +
-// user-attribute checks). Field keys are `tableName.fieldName`.
-export interface CatalogVisibility {
-    allowedExplores: ReadonlySet<string>;
-    allowedFieldsByExplore?: ReadonlyMap<string, ReadonlySet<string>> | null;
-}
-
-export interface CatalogSearchHit {
-    document: CatalogDocument;
-    score: number;
-}
-
-export interface CatalogSyncResult {
-    upserted: number;
-    removed: number;
-    unchanged: number;
-}
-
-export class CatalogIndexError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'CatalogIndexError';
-    }
-}
-
-const UUID_PATTERN =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export {
+    CatalogIndexError,
+    hashContent,
+    uuidFromParts,
+    type CatalogDimensionInput,
+    type CatalogDocument,
+    type CatalogExistingRow,
+    type CatalogExploreInput,
+    type CatalogIndexKey,
+    type CatalogIndexStore,
+    type CatalogMetricInput,
+    type CatalogResourceType,
+    type CatalogSearchHit,
+    type CatalogSyncResult,
+    type CatalogTableInput,
+    type CatalogVisibility,
+} from './catalogTypes';
+export {
+    buildCatalogLexicalSearchStatement,
+    filterCatalogHits,
+    searchCatalogDocuments,
+    type CatalogSearchStatement,
+    type SearchCatalogOptions,
+} from './catalogSearch';
 
 const MAX_SYNC_EXPLORES = 1000;
 
 const normalizeText = (value: string | null | undefined): string =>
     (value ?? '').trim().replace(/\s+/g, ' ');
-
-export function hashContent(content: string): string {
-    return createHash('sha256').update(content, 'utf8').digest('hex');
-}
-
-// Deterministic UUID from stable parts (first 32 hex chars of SHA-256,
-// laid out 8-4-4-4-12). Same parts always yield the same resource_uuid.
-export function uuidFromParts(...parts: string[]): string {
-    const hex = createHash('sha256')
-        .update(parts.join('|'), 'utf8')
-        .digest('hex')
-        .slice(0, 32);
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
-
-function assertProjectUuid(projectUuid: string): void {
-    if (!UUID_PATTERN.test(projectUuid)) {
-        throw new CatalogIndexError('Invalid project identifier');
-    }
-}
 
 function buildExploreContent(explore: CatalogExploreInput): string {
     const tables = Object.keys(explore.tables ?? {}).sort();
@@ -395,118 +307,5 @@ export async function syncCatalogIndex(
         upserted: diff.upsert.length,
         removed: diff.remove.length,
         unchanged: diff.unchanged,
-    };
-}
-
-function isFieldAllowed(
-    document: CatalogDocument,
-    visibility: CatalogVisibility,
-): boolean {
-    if (!visibility.allowedExplores.has(document.exploreName)) {
-        return false;
-    }
-    if (
-        document.fieldKind === null ||
-        !visibility.allowedFieldsByExplore ||
-        !visibility.allowedFieldsByExplore.has(document.exploreName)
-    ) {
-        return true;
-    }
-    const allowed = visibility.allowedFieldsByExplore.get(document.exploreName);
-    if (
-        !allowed ||
-        document.tableName === null ||
-        document.fieldName === null
-    ) {
-        return false;
-    }
-    return allowed.has(`${document.tableName}.${document.fieldName}`);
-}
-
-// Retrieval-time gate: drops hits the active principal may not see.
-export function filterCatalogHits(
-    hits: readonly CatalogSearchHit[],
-    visibility: CatalogVisibility,
-): CatalogSearchHit[] {
-    return hits.filter((hit) => isFieldAllowed(hit.document, visibility));
-}
-
-const tokenize = (value: string): string[] =>
-    value
-        .toLowerCase()
-        .split(/[^a-z0-9_]+/)
-        .filter((token) => token.length > 0);
-
-export interface SearchCatalogOptions {
-    limit?: number;
-}
-
-// In-memory lexical search over index documents with retrieval-time
-// visibility filtering. Name matches outrank description matches.
-export function searchCatalogDocuments(
-    documents: readonly CatalogDocument[],
-    query: string,
-    visibility: CatalogVisibility,
-    options: SearchCatalogOptions = {},
-): CatalogSearchHit[] {
-    const tokens = tokenize(query);
-    if (tokens.length === 0) {
-        return [];
-    }
-    const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
-    const scored: CatalogSearchHit[] = [];
-    for (const document of documents) {
-        if (isFieldAllowed(document, visibility)) {
-            const nameTokens = new Set(
-                tokenize(
-                    `${document.exploreName} ${document.tableName ?? ''} ${document.fieldName ?? ''}`,
-                ),
-            );
-            const contentTokens = tokenize(document.content);
-            const contentCounts = new Map<string, number>();
-            for (const token of contentTokens) {
-                contentCounts.set(token, (contentCounts.get(token) ?? 0) + 1);
-            }
-            let score = 0;
-            for (const token of tokens) {
-                if (nameTokens.has(token)) {
-                    score += 3;
-                }
-                score += Math.min(contentCounts.get(token) ?? 0, 3);
-            }
-            if (score > 0) {
-                scored.push({ document, score });
-            }
-        }
-    }
-    scored.sort(
-        (a, b) =>
-            b.score - a.score ||
-            a.document.resourceType.localeCompare(b.document.resourceType) ||
-            a.document.resourceUuid.localeCompare(b.document.resourceUuid),
-    );
-    return scored.slice(0, limit);
-}
-
-export interface CatalogSearchStatement {
-    text: string;
-    params: [string, string, number];
-}
-
-// Lexical search statement for live PG retrieval; callers still filter
-// returned hits through `filterCatalogHits` before serving them.
-export function buildCatalogLexicalSearchStatement(
-    projectUuid: string,
-    query: string,
-    limit: number,
-    schema: string = AGENT_EXT_SCHEMA,
-): CatalogSearchStatement {
-    assertProjectUuid(projectUuid);
-    const table = AGENT_EXT_TABLES.catalogIndex;
-    const resolved = resolveSchemaName(schema);
-    const bounded = Math.min(Math.max(Math.floor(limit), 1), 100);
-    return {
-        text: `SELECT project_uuid, resource_type, resource_uuid, content FROM "${resolved}"."${table}" WHERE project_uuid = $1 AND document @@ plainto_tsquery('english', $2) ORDER BY ts_rank(document, plainto_tsquery('english', $2)) DESC LIMIT $3`,
-        params: [projectUuid, query, bounded],
     };
 }

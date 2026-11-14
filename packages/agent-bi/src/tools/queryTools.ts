@@ -1,355 +1,73 @@
-// Governed query tools (Slice C): every execution runs the v2 async
-// query APIs through the injected Slice B client — poll-then-fetch, never
-// a queued queryUuid treated as a result. Compose pipelines go through
-// query-sources, not ad-hoc SQL. Raw SQL additionally passes Issue #4's
-// SQL guard and is denied unless the host attests read-only enforcement.
-
 import { z } from 'zod';
-import { recordAuditEvent, sanitizeAuditInput } from '../audit/auditLogger';
 import type { AgentPrincipal } from '../auth/agentPrincipal';
 import { getAgentBiConfig } from '../config/agentBiConfig';
 import type {
-    LightdashV2Client,
-    PollOptions,
     V2DashboardChartBody,
     V2MetricQueryBody,
     V2SavedChartBody,
     V2UnderlyingDataBody,
 } from '../client/lightdashV2Client';
+import { evaluateSqlGuard } from '../guardrails/sqlAstGuard';
 import {
-    ABSOLUTE_SQL_GUARD_MAX_ROWS,
-    evaluateSqlGuard,
-} from '../guardrails/sqlAstGuard';
-import { evaluateCapability } from '../policy/capabilityPolicy';
-import {
-    agentReadyPageSchema,
     AgentToolError,
     formatValidationError,
-    pageSchema,
-    pageSizeSchema,
-    projectUuidSchema,
     type AgentReadyPage,
-    type AgentToolBaseDeps,
     type AgentToolRuntimeOptions,
 } from './agentToolTypes';
+import {
+    enforceSqlExecutionGuard,
+    pollOptionsOf,
+    runGuardedQuery,
+    type InvokeFn,
+} from './queryHelpers';
+import {
+    QUERY_TOOL_NAMES,
+    runComposePipelineInputSchema,
+    runComposePipelineOutputSchema,
+    runMetricQueryInputSchema,
+    runMetricQueryOutputSchema,
+    runSavedChartInputSchema,
+    runSavedChartOutputSchema,
+    runSqlInputSchema,
+    runSqlOutputSchema,
+    runUnderlyingDataInputSchema,
+    runUnderlyingDataOutputSchema,
+    type QueryToolDeps,
+    type QueryToolName,
+    type RunComposePipelineInput,
+    type RunComposePipelineOutput,
+    type RunMetricQueryInput,
+    type RunSavedChartInput,
+    type RunSqlInput,
+    type RunUnderlyingDataInput,
+} from './querySchemas';
 
 export { AgentToolError } from './agentToolTypes';
-
-export const QUERY_TOOL_NAMES = [
-    'run_metric_query',
-    'run_saved_chart',
-    'run_underlying_data',
-    'run_compose_pipeline',
-    'run_sql',
-] as const;
-
-export type QueryToolName = (typeof QUERY_TOOL_NAMES)[number];
-
-type QueryCapability = 'metric_query' | 'compose_query' | 'raw_sql';
-
-export const TOOL_CAPABILITIES: Record<QueryToolName, QueryCapability> = {
-    run_compose_pipeline: 'compose_query',
-    run_metric_query: 'metric_query',
-    run_saved_chart: 'metric_query',
-    run_sql: 'raw_sql',
-    run_underlying_data: 'metric_query',
-};
-
-const MAX_NAME_CHARS = 256;
-const MAX_SQL_CHARS = 20000;
-
-const nameSchema = z.string().trim().min(1).max(MAX_NAME_CHARS);
-
-const sortsSchema = z
-    .array(
-        z.object({
-            descending: z.boolean().nullable().optional(),
-            fieldId: nameSchema,
-        }),
-    )
-    .max(50)
-    .optional();
-
-export const runMetricQueryInputSchema = z
-    .object({
-        dimensions: z.array(nameSchema).max(100).optional(),
-        exploreName: nameSchema,
-        filters: z.record(z.string(), z.unknown()).optional(),
-        limit: z.number().int().min(1).max(5000).nullable().optional(),
-        metrics: z.array(nameSchema).max(100).optional(),
-        page: pageSchema,
-        pageSize: pageSizeSchema,
-        projectUuid: projectUuidSchema,
-        sorts: sortsSchema,
-        timezone: z.string().min(1).max(64).nullable().optional(),
-    })
-    .refine(
-        (input) =>
-            (input.dimensions?.length ?? 0) > 0 ||
-            (input.metrics?.length ?? 0) > 0,
-        { message: 'A metric query needs dimensions or metrics' },
-    );
-
-export const runSavedChartInputSchema = z
-    .object({
-        approvalToken: z.string().min(1).max(1024).optional(),
-        chartUuid: z.string().uuid(),
-        dashboardFilters: z.record(z.string(), z.unknown()).optional(),
-        dashboardUuid: z.string().uuid().optional(),
-        limit: z.number().int().min(1).max(5000).nullable().optional(),
-        page: pageSchema,
-        pageSize: pageSizeSchema,
-        projectUuid: projectUuidSchema,
-        tileUuid: z.string().min(1).max(MAX_NAME_CHARS).optional(),
-        versionUuid: z.string().uuid().optional(),
-    })
-    .refine(
-        (input) =>
-            input.dashboardUuid === undefined || input.tileUuid !== undefined,
-        {
-            message:
-                'Dashboard chart execution needs tileUuid alongside dashboardUuid',
-        },
-    );
-
-export const runUnderlyingDataInputSchema = z.object({
-    filters: z.record(z.string(), z.unknown()),
-    limit: z.number().int().min(1).max(5000).nullable().optional(),
-    page: pageSchema,
-    pageSize: pageSizeSchema,
-    projectUuid: projectUuidSchema,
-    sorts: sortsSchema,
-    underlyingDataItemId: z.string().min(1).max(MAX_NAME_CHARS).optional(),
-    underlyingDataSourceQueryUuid: z.string().uuid(),
-});
-
-export const runComposePipelineInputSchema = z.object({
-    approvalToken: z.string().min(1).max(1024).optional(),
-    invalidateCache: z.boolean().optional(),
-    page: pageSchema,
-    pageSize: pageSizeSchema,
-    parameters: z.record(z.string(), z.unknown()).optional(),
-    projectUuid: projectUuidSchema,
-    queries: z.array(z.record(z.string(), z.unknown())).min(1),
-});
-
-export const runSqlInputSchema = z.object({
-    approvalToken: z.string().min(1).max(1024).optional(),
-    limit: z.number().int().min(1).max(ABSOLUTE_SQL_GUARD_MAX_ROWS).optional(),
-    page: pageSchema,
-    pageSize: pageSizeSchema,
-    projectUuid: projectUuidSchema,
-    sql: z.string().trim().min(1).max(MAX_SQL_CHARS),
-});
-
-export type RunMetricQueryInput = z.infer<typeof runMetricQueryInputSchema>;
-export type RunSavedChartInput = z.infer<typeof runSavedChartInputSchema>;
-export type RunUnderlyingDataInput = z.infer<
-    typeof runUnderlyingDataInputSchema
->;
-export type RunComposePipelineInput = z.infer<
-    typeof runComposePipelineInputSchema
->;
-export type RunSqlInput = z.infer<typeof runSqlInputSchema>;
-
-export const runMetricQueryOutputSchema = agentReadyPageSchema;
-export const runSavedChartOutputSchema = agentReadyPageSchema;
-export const runUnderlyingDataOutputSchema = agentReadyPageSchema;
-export const runSqlOutputSchema = agentReadyPageSchema;
-
-export const runComposePipelineOutputSchema = z.object({
-    pages: z.array(agentReadyPageSchema).min(1),
-    truncated: z.boolean().optional(),
-    warnings: z.array(z.string()).optional(),
-});
-
-export type RunComposePipelineOutput = z.infer<
-    typeof runComposePipelineOutputSchema
->;
-
-export type QueryToolsClient = Pick<
-    LightdashV2Client,
-    | 'executeComposeQueries'
-    | 'executeDashboardChart'
-    | 'executeSavedChart'
-    | 'executeUnderlyingData'
-    | 'pollQueryToReady'
-    | 'runMetricQuery'
-    | 'runSqlQuery'
->;
-
-// Host-attested warehouse posture for raw SQL. The guard cannot inspect
-// warehouse grants itself, so a missing read-only attestation denies.
-export interface RawSqlGuardrails {
-    dialect?: string | null;
-    expectedApprovalToken?: string | null;
-    maxRows?: number;
-    readOnlyEnforced: boolean;
-}
-
-export interface ChartSqlProvenance {
-    isSqlChart: boolean;
-    limit?: number | null;
-    sql?: string | null;
-}
-
-export interface QueryToolDeps extends AgentToolBaseDeps {
-    composeMaxQueries?: number;
-    defaultTimeoutMs?: number;
-    queryClient: QueryToolsClient;
-    rawSql: RawSqlGuardrails;
-    resolveChartSql?: (
-        projectUuid: string,
-        chartUuid: string,
-    ) => Promise<ChartSqlProvenance | null>;
-}
-
-type InvokeFn = () => Promise<unknown>;
-
-const runGuardedQuery = async (
-    deps: QueryToolDeps,
-    tool: QueryToolName,
-    input: { projectUuid: string },
-    principal: AgentPrincipal,
-    options: AgentToolRuntimeOptions,
-    outputSchema: z.ZodType<unknown>,
-    invoke: InvokeFn,
-    rowCountOf: (result: unknown) => number | null,
-): Promise<unknown> => {
-    void options;
-    const startedAt = Date.now();
-    const capability = TOOL_CAPABILITIES[tool];
-    const auditBase = {
-        capability,
-        principal: {
-            organizationUuid: principal.organizationUuid,
-            userUuid: principal.userUuid,
-        },
-        projectUuid: input.projectUuid,
-        tool,
-    };
-    const policyVerdict = evaluateCapability(
-        principal,
-        capability,
-        deps.policyContext,
-    );
-    if (!policyVerdict.allowed) {
-        await recordAuditEvent(deps.auditClient, {
-            ...auditBase,
-            input: sanitizeAuditInput(input),
-            policyVerdict: {
-                allowed: false,
-                reason: policyVerdict.reason,
-            },
-            reason: policyVerdict.message,
-            verdict: 'deny',
-        });
-        throw new AgentToolError(
-            'POLICY_DENIED',
-            'The current user lacks permission for this action.',
-            policyVerdict.reason,
-        );
-    }
-    try {
-        const raw = await invoke();
-        const result = outputSchema.parse(raw);
-        await recordAuditEvent(deps.auditClient, {
-            ...auditBase,
-            input: sanitizeAuditInput(input),
-            latencyMs: Date.now() - startedAt,
-            policyVerdict: { allowed: true },
-            rowCount: rowCountOf(result),
-            verdict: 'allow',
-        });
-        return result;
-    } catch (error) {
-        if (error instanceof AgentToolError && error.code === 'POLICY_DENIED') {
-            throw error;
-        }
-        const reason =
-            error instanceof AgentToolError ? error.code : 'UPSTREAM_ERROR';
-        const message =
-            error instanceof AgentToolError
-                ? error.message
-                : 'The request failed before rows could be returned.';
-        await recordAuditEvent(deps.auditClient, {
-            ...auditBase,
-            guardVerdict:
-                reason === 'GUARD_DENIED'
-                    ? {
-                          allowed: false,
-                          reason:
-                              error instanceof AgentToolError &&
-                              error.reason !== null
-                                  ? error.reason
-                                  : 'DENIED',
-                      }
-                    : undefined,
-            input: sanitizeAuditInput(input),
-            latencyMs: Date.now() - startedAt,
-            reason,
-            verdict: 'deny',
-        });
-        if (error instanceof AgentToolError) {
-            throw error;
-        }
-        throw new AgentToolError('UPSTREAM_ERROR', message, reason);
-    }
-};
-
-const pollOptionsOf = (
-    deps: QueryToolDeps,
-    options: AgentToolRuntimeOptions,
-    input: { page?: number; pageSize?: number },
-): PollOptions => ({
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-    ...(deps.defaultTimeoutMs !== undefined
-        ? { timeoutMs: deps.defaultTimeoutMs }
-        : {}),
-    ...(input.page !== undefined ? { page: input.page } : {}),
-    ...(input.pageSize !== undefined ? { pageSize: input.pageSize } : {}),
-});
-
-const enforceSqlExecutionGuard = (
-    deps: QueryToolDeps,
-    principal: AgentPrincipal,
-    sql: string,
-    approvalToken: string | undefined,
-    limit: number | null | undefined,
-): void => {
-    const rawSqlPolicy = evaluateCapability(
-        principal,
-        'raw_sql',
-        deps.policyContext,
-    );
-    if (!rawSqlPolicy.allowed) {
-        throw new AgentToolError(
-            'POLICY_DENIED',
-            'The current user lacks permission for arbitrary SQL execution.',
-            rawSqlPolicy.reason,
-        );
-    }
-    const verdict = evaluateSqlGuard(sql, {
-        approvalToken: approvalToken ?? null,
-        dialect: deps.rawSql.dialect ?? null,
-        expectedApprovalToken: deps.rawSql.expectedApprovalToken ?? null,
-        maxRows: limit ?? deps.rawSql.maxRows ?? undefined,
-        principal: {
-            organizationUuid: principal.organizationUuid,
-            userUuid: principal.userUuid,
-        },
-        readOnly: {
-            enforced: deps.rawSql.readOnlyEnforced,
-        },
-    });
-    if (!verdict.allowed) {
-        throw new AgentToolError(
-            'GUARD_DENIED',
-            verdict.message,
-            verdict.reason,
-        );
-    }
-};
+export {
+    QUERY_TOOL_NAMES,
+    TOOL_CAPABILITIES,
+    runComposePipelineInputSchema,
+    runComposePipelineOutputSchema,
+    runMetricQueryInputSchema,
+    runMetricQueryOutputSchema,
+    runSavedChartInputSchema,
+    runSavedChartOutputSchema,
+    runSqlInputSchema,
+    runSqlOutputSchema,
+    runUnderlyingDataInputSchema,
+    runUnderlyingDataOutputSchema,
+    type ChartSqlProvenance,
+    type QueryToolDeps,
+    type QueryToolName,
+    type QueryToolsClient,
+    type RawSqlGuardrails,
+    type RunComposePipelineInput,
+    type RunComposePipelineOutput,
+    type RunMetricQueryInput,
+    type RunSavedChartInput,
+    type RunSqlInput,
+    type RunUnderlyingDataInput,
+} from './querySchemas';
 
 export const createQueryTools = (deps: QueryToolDeps) => {
     const guard = (
