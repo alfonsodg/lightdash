@@ -1,6 +1,7 @@
 // Project-scoped markdown skills over agent_ext.skills. Role checks
 // (viewer read, editor write) live with the caller; this store scopes
 // every row to its project.
+import { toISOString } from '../db/rowMappers';
 
 export interface SkillQueryClient {
     query(
@@ -55,13 +56,6 @@ const assertSlug = (slug: string): string => {
         );
     }
     return trimmed;
-};
-
-const toISOString = (value: unknown): string => {
-    if (value instanceof Date) {
-        return value.toISOString();
-    }
-    return String(value ?? '');
 };
 
 const toSkillRecord = (row: Record<string, unknown>): SkillRecord => ({

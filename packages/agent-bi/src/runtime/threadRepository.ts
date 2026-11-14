@@ -1,5 +1,6 @@
 // User-owned conversation threads and messages over agent_ext.
 // Every read and write checks ownership: the owner or an org admin auditor.
+import { toISOString } from '../db/rowMappers';
 
 export interface ThreadQueryClient {
     query(
@@ -56,13 +57,6 @@ const assertUuid = (name: string, value: string): void => {
             `${name} must be a valid UUID.`,
         );
     }
-};
-
-const toISOString = (value: unknown): string => {
-    if (value instanceof Date) {
-        return value.toISOString();
-    }
-    return String(value ?? '');
 };
 
 const toThreadRecord = (row: Record<string, unknown>): ThreadRecord => ({
