@@ -5,10 +5,8 @@
 // scheduler job-status routes are addressable here — no deprecated v1
 // write path (`POST /saved`, `PATCH /saved`) exists in this module.
 
-import {
-    AgentToolError,
-    type AgentToolRuntimeOptions,
-} from '../tools/agentToolTypes';
+import { type AgentToolRuntimeOptions } from '../tools/agentToolTypes';
+import { createJsonFetchClient } from '../tools/httpFetchClient';
 
 export interface ExportFetchRequest {
     method: 'GET' | 'POST';
@@ -53,67 +51,18 @@ export interface ExportFetchClientOptions {
     baseUrl: string;
     fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
     headers?: Record<string, string>;
+    timeoutMs?: number;
 }
 
 // Host-owned HTTP adapter behind the ExportFetch seam: base URL and
 // caller credentials come from the deploy environment, never from tools.
 export const createExportFetchClient = (
     options: ExportFetchClientOptions,
-): ExportFetch => {
-    if (!options.baseUrl || !options.baseUrl.trim()) {
-        throw new AgentToolError(
-            'INVALID_INPUT',
-            'A base URL is required for export requests.',
-        );
-    }
-    const baseUrl = options.baseUrl.replace(/\/+$/, '');
-    const fetchImpl = options.fetchImpl ?? ((url, init) => fetch(url, init));
-    return async (request) => {
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(request.query ?? {})) {
-            if (value !== undefined) {
-                params.set(key, value);
-            }
-        }
-        const suffix = params.size > 0 ? `?${params.toString()}` : '';
-        let response: Response;
-        try {
-            response = await fetchImpl(`${baseUrl}${request.path}${suffix}`, {
-                headers: {
-                    Accept: 'application/json',
-                    ...(options.headers ?? {}),
-                    ...(request.method === 'POST'
-                        ? { 'Content-Type': 'application/json' }
-                        : {}),
-                },
-                method: request.method,
-                ...(request.method === 'POST'
-                    ? { body: JSON.stringify(request.body ?? {}) }
-                    : {}),
-            });
-        } catch {
-            throw new AgentToolError(
-                'UPSTREAM_ERROR',
-                'The export request failed before reaching the server.',
-            );
-        }
-        if (response.status < 200 || response.status >= 300) {
-            throw new AgentToolError(
-                'UPSTREAM_ERROR',
-                `The export request failed (status ${response.status}).`,
-            );
-        }
-        const text = await response.text();
-        if (!text) {
-            return null;
-        }
-        try {
-            return JSON.parse(text) as unknown;
-        } catch {
-            throw new AgentToolError(
-                'UPSTREAM_ERROR',
-                'The server returned a response the tool could not read.',
-            );
-        }
-    };
-};
+): ExportFetch =>
+    createJsonFetchClient({
+        baseUrl: options.baseUrl,
+        domainLabel: 'export',
+        fetchImpl: options.fetchImpl,
+        headers: options.headers,
+        timeoutMs: options.timeoutMs,
+    });
