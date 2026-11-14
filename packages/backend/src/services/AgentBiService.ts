@@ -12,6 +12,7 @@ import {
     defaultExportPollConfig,
     getAgentBiConfig,
     hashContent,
+    loadAgentBiConfig,
     parseApprovalContent,
     requestApproval,
     resolveApproval,
@@ -251,9 +252,10 @@ export class AgentBiService extends BaseService {
         const verifySpaceAccess = async (
             projectUuid: string,
             spaceSlug: string,
+            principal?: AgentPrincipal,
         ) => {
             const { rows } = await this.agentBiModel.query(
-                `SELECT s.project_member_access_role
+                `SELECT s.space_uuid, s.project_member_access_role
                  FROM spaces s
                  JOIN projects p ON p.project_id = s.project_id
                  WHERE p.project_uuid = $1 AND s.slug = $2 AND s.deleted_at IS NULL
@@ -264,10 +266,67 @@ export class AgentBiService extends BaseService {
                 return { exists: false, isPublic: false, writable: false };
             }
             const row = rows[0] as Record<string, unknown>;
+            const spaceUuid =
+                typeof row.space_uuid === 'string' ? row.space_uuid : null;
+            const projectRole =
+                typeof row.project_member_access_role === 'string'
+                    ? row.project_member_access_role
+                    : null;
+            const isPublic = projectRole !== null;
+
+            if (!principal?.userUuid || spaceUuid === null) {
+                return { exists: isPublic, isPublic, writable: false };
+            }
+
+            const [adminAccess, userAccess, groupAccess] = await Promise.all([
+                this.agentBiModel.query(
+                    `SELECT 1
+                     FROM projects p
+                     JOIN users u ON u.user_uuid = $2
+                     LEFT JOIN organization_memberships om
+                         ON om.organization_id = p.organization_id AND om.user_id = u.user_id
+                     LEFT JOIN project_memberships pm
+                         ON pm.project_id = p.project_id AND pm.user_id = u.user_id
+                     WHERE p.project_uuid = $1
+                       AND (om.role = 'admin' OR pm.role = 'admin')
+                     LIMIT 1`,
+                    [projectUuid, principal.userUuid],
+                ),
+                this.agentBiModel.query(
+                    `SELECT space_role FROM space_user_access
+                     WHERE space_uuid = $1 AND user_uuid = $2`,
+                    [spaceUuid, principal.userUuid],
+                ),
+                this.agentBiModel.query(
+                    `SELECT sga.space_role
+                     FROM space_group_access sga
+                     JOIN group_memberships gm ON gm.group_uuid = sga.group_uuid
+                     WHERE sga.space_uuid = $1 AND gm.user_uuid = $2`,
+                    [spaceUuid, principal.userUuid],
+                ),
+            ]);
+
+            if (adminAccess.rows.length > 0) {
+                return { exists: true, isPublic, writable: true };
+            }
+
+            const directRoles = [...userAccess.rows, ...groupAccess.rows]
+                .map((r) => (r as Record<string, unknown>).space_role)
+                .filter((role): role is string => typeof role === 'string');
+
+            if (!isPublic && directRoles.length === 0) {
+                return { exists: false, isPublic: false, writable: false };
+            }
+
+            const writeRoles = new Set(['editor', 'admin']);
+            const writable =
+                (projectRole !== null && writeRoles.has(projectRole)) ||
+                directRoles.some((role) => writeRoles.has(role));
+
             return {
                 exists: true,
-                isPublic: row.project_member_access_role !== null,
-                writable: true,
+                isPublic,
+                writable,
             };
         };
         return {
@@ -445,7 +504,7 @@ export class AgentBiService extends BaseService {
     }
 
     buildLlmClient(): LlmChatClient {
-        const config = getAgentBiConfig();
+        const config = loadAgentBiConfig(process.env);
         return createOpenAiChatClient({
             apiKey: config.llmApiKey ?? '',
             baseUrl: config.llmEndpoint ?? '',

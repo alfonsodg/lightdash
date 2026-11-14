@@ -220,7 +220,7 @@ describe('AgentBiService catalog search', () => {
         ])) as Array<{ document: { projectUuid: string } }>;
 
         expect(queries[0]?.text).toContain('WHERE project_uuid = $1');
-        expect(queries[0]?.params).toEqual([PROJECT]);
+        expect(queries[0]?.params).toEqual([PROJECT, 2000]);
         expect(hits.map((hit) => hit.document.projectUuid)).toEqual([PROJECT]);
     });
 
@@ -832,5 +832,153 @@ describe('AgentBiService resolveThreadApproval', () => {
                 'approved',
             ),
         ).rejects.toThrowError(NotFoundError);
+    });
+});
+
+describe('AgentBiService verifySpaceAccess', () => {
+    const SPACE_UUID = '55555555-5555-4555-8555-555555555555';
+    const userPrincipal = {
+        ability: { can: () => false },
+        authType: 'session' as const,
+        cacheKey: 'user:33333333-3333-4333-8333-333333333333',
+        organizationUuid: '11111111-1111-4111-8111-111111111111',
+        userAttributesHash: 'test-hash',
+        userUuid: '33333333-3333-4333-8333-333333333333',
+    };
+
+    it('denies access to a private space when the user has no direct or group share', async () => {
+        const { service } = makeService({
+            onQuery: (text) => {
+                if (text.includes('FROM spaces s')) {
+                    return {
+                        rows: [
+                            {
+                                project_member_access_role: null,
+                                space_uuid: SPACE_UUID,
+                            },
+                        ],
+                    };
+                }
+                return { rows: [] };
+            },
+        });
+        const { verifySpaceAccess } = service.buildToolDeps({});
+        await expect(
+            verifySpaceAccess?.(PROJECT, 'private-space', userPrincipal),
+        ).resolves.toEqual({
+            exists: false,
+            isPublic: false,
+            writable: false,
+        });
+    });
+
+    it('returns read-only access for a private space viewer and writable for a group editor', async () => {
+        const { service: viewerService } = makeService({
+            onQuery: (text) => {
+                if (text.includes('FROM spaces s')) {
+                    return {
+                        rows: [
+                            {
+                                project_member_access_role: null,
+                                space_uuid: SPACE_UUID,
+                            },
+                        ],
+                    };
+                }
+                if (text.includes('space_user_access')) {
+                    return { rows: [{ space_role: 'viewer' }] };
+                }
+                return { rows: [] };
+            },
+        });
+        await expect(
+            viewerService
+                .buildToolDeps({})
+                .verifySpaceAccess?.(PROJECT, 'private-space', userPrincipal),
+        ).resolves.toEqual({
+            exists: true,
+            isPublic: false,
+            writable: false,
+        });
+
+        const { service: groupEditorService } = makeService({
+            onQuery: (text) => {
+                if (text.includes('FROM spaces s')) {
+                    return {
+                        rows: [
+                            {
+                                project_member_access_role: null,
+                                space_uuid: SPACE_UUID,
+                            },
+                        ],
+                    };
+                }
+                if (text.includes('space_group_access')) {
+                    return { rows: [{ space_role: 'editor' }] };
+                }
+                return { rows: [] };
+            },
+        });
+        await expect(
+            groupEditorService
+                .buildToolDeps({})
+                .verifySpaceAccess?.(PROJECT, 'private-space', userPrincipal),
+        ).resolves.toEqual({
+            exists: true,
+            isPublic: false,
+            writable: true,
+        });
+    });
+
+    it('distinguishes read-only vs writable public spaces', async () => {
+        const { service: roPublicService } = makeService({
+            onQuery: (text) => {
+                if (text.includes('FROM spaces s')) {
+                    return {
+                        rows: [
+                            {
+                                project_member_access_role: 'viewer',
+                                space_uuid: SPACE_UUID,
+                            },
+                        ],
+                    };
+                }
+                return { rows: [] };
+            },
+        });
+        await expect(
+            roPublicService
+                .buildToolDeps({})
+                .verifySpaceAccess?.(PROJECT, 'public-ro', userPrincipal),
+        ).resolves.toEqual({
+            exists: true,
+            isPublic: true,
+            writable: false,
+        });
+
+        const { service: rwPublicService } = makeService({
+            onQuery: (text) => {
+                if (text.includes('FROM spaces s')) {
+                    return {
+                        rows: [
+                            {
+                                project_member_access_role: 'editor',
+                                space_uuid: SPACE_UUID,
+                            },
+                        ],
+                    };
+                }
+                return { rows: [] };
+            },
+        });
+        await expect(
+            rwPublicService
+                .buildToolDeps({})
+                .verifySpaceAccess?.(PROJECT, 'public-rw', userPrincipal),
+        ).resolves.toEqual({
+            exists: true,
+            isPublic: true,
+            writable: true,
+        });
     });
 });
