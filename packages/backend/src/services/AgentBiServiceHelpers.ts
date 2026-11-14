@@ -209,7 +209,8 @@ export const createSpaceAccessVerifier =
                 `SELECT sga.space_role
                  FROM space_group_access sga
                  JOIN group_memberships gm ON gm.group_uuid = sga.group_uuid
-                 WHERE sga.space_uuid = $1 AND gm.user_uuid = $2`,
+                 JOIN users u ON u.user_id = gm.user_id
+                 WHERE sga.space_uuid = $1 AND u.user_uuid = $2`,
                 [spaceUuid, principal.userUuid],
             ),
         ]);

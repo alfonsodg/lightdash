@@ -913,7 +913,11 @@ describe('AgentBiService verifySpaceAccess', () => {
                         ],
                     };
                 }
-                if (text.includes('space_group_access')) {
+                if (
+                    text.includes('space_group_access') &&
+                    text.includes('JOIN users u ON u.user_id = gm.user_id') &&
+                    text.includes('u.user_uuid = $2')
+                ) {
                     return { rows: [{ space_role: 'editor' }] };
                 }
                 return { rows: [] };
