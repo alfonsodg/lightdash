@@ -140,6 +140,7 @@ export const runAgentTurn = async (
         buildSystemPrompt({
             catalogMatches,
             pinnedContext: input.pinnedContext ?? null,
+            projectUuid: input.projectUuid,
             runtimeOverrides: input.runtimeOverrides ?? null,
             skills: input.skills,
             toolNames: offered.map((entry) => entry.name),

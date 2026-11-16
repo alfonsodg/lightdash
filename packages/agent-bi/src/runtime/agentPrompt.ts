@@ -33,6 +33,7 @@ export const escapeUntrusted = (value: string): string =>
 export interface PromptContext {
     catalogMatches: CatalogDocument[];
     pinnedContext?: RuntimePinnedContext | null;
+    projectUuid?: string;
     runtimeOverrides?: RuntimeOverrides | null;
     skills: OrchestratorSkill[];
     toolNames: string[];
@@ -60,6 +61,9 @@ export const buildSystemPrompt = (context: PromptContext): string => {
         '- Prefer discovery tools before querying; validate chart configs before upserting.',
         '- Keep replies concise; reference created content by slug.',
         '- Read-only SQL may pause for human approval; if a call needs approval, explain that briefly and stop.',
+        ...(context.projectUuid !== undefined && context.projectUuid !== ''
+            ? [`- Active projectUuid: ${context.projectUuid}`]
+            : []),
         `## Tools\n${context.toolNames.join(', ')}`,
     ];
     if (context.skills.length > 0) {
