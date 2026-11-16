@@ -13,8 +13,16 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
+    border-top: 3px solid var(--mantine-color-indigo-filled);
+}
+
+.dragBar {
+    padding: 4px 8px;
+    border-radius: var(--mantine-radius-sm);
+    background: var(--mantine-color-default-hover);
 }
 
 .dragHandle {
     cursor: grab;
+    color: var(--mantine-color-indigo-light-color);
 }

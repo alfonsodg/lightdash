@@ -154,6 +154,17 @@ const resolveChartViewMode = (
     return 'bar';
 };
 
+const AGENT_BI_PALETTE = [
+    '#2563EB',
+    '#06B6D4',
+    '#10B981',
+    '#F59E0B',
+    '#EC4899',
+    '#8B5CF6',
+    '#14B8A6',
+    '#F97316',
+];
+
 const buildCartesianConfig = (
     xField: string,
     yFields: string[],
@@ -182,7 +193,8 @@ const buildCartesianConfig = (
                           yAxis: [{ name: options.yAxisLabel }],
                       }
                     : {}),
-                series: yFields.map((yField) => ({
+                series: yFields.map((yField, index) => ({
+                    color: AGENT_BI_PALETTE[index % AGENT_BI_PALETTE.length],
                     encode: {
                         xRef: { field: xField },
                         yRef: { field: yField },
@@ -329,5 +341,6 @@ export const buildAgentBiQueryOutput = (
             query: { dimensions, metrics },
             rows,
         },
+        { colorPalette: AGENT_BI_PALETTE },
     );
 };

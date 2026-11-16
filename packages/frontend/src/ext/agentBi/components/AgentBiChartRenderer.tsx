@@ -75,8 +75,8 @@ const TableBody = ({
     const visible = model.columns.filter((column) => column.isVisible);
     return (
         <Table.ScrollContainer minWidth={700}>
-            <Table>
-                <Table.Thead>
+            <Table striped highlightOnHover withTableBorder>
+                <Table.Thead className={classes.tableHead}>
                     <Table.Tr>
                         {visible.map((column) => (
                             <Table.Th key={column.id}>
@@ -113,7 +113,7 @@ const BigNumberBody = ({
     const { model } = output;
     return (
         <Stack gap="xs" align="center" className={classes.kpi}>
-            <Title order={3} ta="center">
+            <Title order={3} ta="center" className={classes.kpiValue}>
                 {model.value ?? '—'}
             </Title>
             {model.showLabel && model.label ? (

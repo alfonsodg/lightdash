@@ -99,6 +99,8 @@ const AgentBiCanvasBoard: FC<Props> = ({
                     onChange={(value) => {
                         if (value) onSelectTab(value);
                     }}
+                    variant="pills"
+                    color="indigo"
                     className={classes.tabs}
                 >
                     <Tabs.List>
@@ -181,6 +183,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                         <div key={card.id}>
                             <Paper
                                 withBorder
+                                shadow="xs"
                                 p="sm"
                                 radius="md"
                                 className={classes.card}
@@ -189,6 +192,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                                     justify="space-between"
                                     mb="xs"
                                     wrap="nowrap"
+                                    className={classes.dragBar}
                                 >
                                     <Group
                                         gap={4}

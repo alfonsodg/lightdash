@@ -32,9 +32,25 @@
     cursor: pointer;
 }
 
+.threadItemActive {
+    cursor: pointer;
+    background: var(--mantine-color-indigo-light);
+    border-color: var(--mantine-color-indigo-filled);
+}
+
 .messagesPane {
     max-height: 45vh;
     overflow-y: auto;
+}
+
+.msgUser {
+    background: var(--mantine-color-indigo-light);
+    border-color: var(--mantine-color-indigo-outline);
+}
+
+.msgError {
+    background: var(--mantine-color-red-light);
+    border-color: var(--mantine-color-red-outline);
 }
 
 @media (max-width: 48em) {

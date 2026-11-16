@@ -7,10 +7,12 @@ import {
     Stack,
     Text,
     TextInput,
+    ThemeIcon,
 } from '@mantine/core';
 import {
     IconLayoutSidebarRightCollapse,
     IconLayoutSidebarRightExpand,
+    IconSparkles,
 } from '@tabler/icons-react';
 import { useEffect, useState, type FC } from 'react';
 import { type Layout } from 'react-grid-layout';
@@ -422,9 +424,19 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                 ) : (
                     <>
                         <Group justify="space-between" wrap="nowrap">
-                            <Text fw={600} fz="lg">
-                                Ask AI
-                            </Text>
+                            <Group gap="xs" wrap="nowrap">
+                                <ThemeIcon
+                                    variant="light"
+                                    color="indigo"
+                                    size="md"
+                                    radius="md"
+                                >
+                                    <IconSparkles size={16} />
+                                </ThemeIcon>
+                                <Text fw={600} fz="lg">
+                                    Ask AI
+                                </Text>
+                            </Group>
                             <ActionIcon
                                 variant="subtle"
                                 aria-label="Collapse sidebar"
@@ -484,7 +496,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                             className={
                                                 thread.threadUuid ===
                                                 activeThread
-                                                    ? `${classes.threadItem} is-active`
+                                                    ? `${classes.threadItemActive} is-active`
                                                     : classes.threadItem
                                             }
                                         >
@@ -546,8 +558,19 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                         </Group>
                                     </Paper>
                                 ) : (
-                                    <Paper key={line.id} p="sm" withBorder>
-                                        <Text fz="xs" c="dimmed">
+                                    <Paper
+                                        key={line.id}
+                                        p="sm"
+                                        withBorder
+                                        className={
+                                            line.role === 'user'
+                                                ? classes.msgUser
+                                                : line.role === 'error'
+                                                  ? classes.msgError
+                                                  : undefined
+                                        }
+                                    >
+                                        <Text fz="xs" fw={600} c="dimmed">
                                             {line.role}
                                         </Text>
                                         <Text fz="sm">{line.text}</Text>
