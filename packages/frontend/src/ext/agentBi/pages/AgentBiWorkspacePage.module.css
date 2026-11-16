@@ -3,40 +3,60 @@
     min-width: 0;
 }
 
-.sidebar {
-    flex: 0 0 17.5rem;
+.canvas {
+    flex: 1 1 0;
     min-width: 0;
+}
+
+.sidebar {
+    flex: 0 0 24rem;
+    min-width: 0;
+    border-left: 1px solid var(--mantine-color-default-border);
+    padding-left: var(--mantine-spacing-md);
 }
 
 .sidebarCollapsed {
     flex: 0 0 2.75rem;
     min-width: 0;
     align-items: center;
+    border-left: 1px solid var(--mantine-color-default-border);
+    padding-left: var(--mantine-spacing-xs);
 }
 
-.conversation {
-    flex: 1 1 0;
-    min-width: 0;
+.threadList {
+    max-height: 11rem;
+    overflow-y: auto;
+}
+
+.threadItem {
+    cursor: pointer;
+}
+
+.messagesPane {
+    max-height: 45vh;
+    overflow-y: auto;
 }
 
 @media (max-width: 48em) {
     .layout {
-        flex-direction: column;
+        flex-direction: column-reverse;
         align-items: stretch;
         flex-wrap: nowrap;
+    }
+
+    .canvas {
+        width: 100%;
+        flex: 0 0 auto;
     }
 
     .sidebar,
     .sidebarCollapsed {
         width: 100%;
-        max-height: 40vh;
         flex: 0 0 auto;
-        overflow-y: auto;
+        border-left: none;
+        border-bottom: 1px solid var(--mantine-color-default-border);
+        padding-left: 0;
+        padding-bottom: var(--mantine-spacing-md);
         align-items: stretch;
-    }
-
-    .conversation {
-        width: 100%;
-        flex: 0 0 auto;
     }
 }

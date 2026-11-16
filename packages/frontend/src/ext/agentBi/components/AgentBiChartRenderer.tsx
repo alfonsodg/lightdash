@@ -189,10 +189,16 @@ const UnsupportedBody = ({ href }: { href?: string }): ReactElement => {
 type Props = {
     href?: string;
     output: RenderedChart;
+    subtitle?: string;
     title?: string;
 };
 
-const AgentBiChartRenderer = ({ href, output, title }: Props): ReactElement => {
+const AgentBiChartRenderer = ({
+    href,
+    output,
+    subtitle,
+    title,
+}: Props): ReactElement => {
     let body: ReactElement;
     switch (output.kind) {
         case 'echarts':
@@ -218,10 +224,19 @@ const AgentBiChartRenderer = ({ href, output, title }: Props): ReactElement => {
     }
     return (
         <Paper p="md" className={classes.root}>
-            {title !== undefined ? (
-                <Title order={5} className={classes.title}>
-                    {title}
-                </Title>
+            {title !== undefined || subtitle !== undefined ? (
+                <Stack gap={2} mb="xs">
+                    {title !== undefined ? (
+                        <Title order={5} className={classes.title}>
+                            {title}
+                        </Title>
+                    ) : null}
+                    {subtitle !== undefined && subtitle !== '' ? (
+                        <Text size="xs" c="dimmed">
+                            {subtitle}
+                        </Text>
+                    ) : null}
+                </Stack>
             ) : null}
             {body}
         </Paper>

@@ -9,21 +9,28 @@ import {
     TextInput,
 } from '@mantine/core';
 import {
-    IconLayoutSidebarLeftCollapse,
-    IconLayoutSidebarLeftExpand,
+    IconLayoutSidebarRightCollapse,
+    IconLayoutSidebarRightExpand,
 } from '@tabler/icons-react';
-import { useState, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
+import { type Layout } from 'react-grid-layout';
 import { useParams } from 'react-router';
 import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
 import InlineErrorState from '../../../components/common/InlineErrorState';
 import { decideApproval } from '../api';
 import AgentBiApprovalCard from '../components/AgentBiApprovalCard';
+import AgentBiCanvasBoard, {
+    type CanvasCard,
+    type CanvasTab,
+} from '../components/AgentBiCanvasBoard';
 import AgentBiContextualDrawer, {
     type AgentBiDrawerContext,
 } from '../components/AgentBiContextualDrawer';
-import AgentBiQueryArtifact from '../components/AgentBiQueryArtifact';
 import {
+    deriveChartTitle,
     parseAgentBiQueryPreview,
+    type AgentBiChartMetadata,
+    type AgentBiChartViewMode,
     type AgentBiQueryPreview,
 } from '../components/agentBiQueryArtifact';
 import ProjectSkillsModal from '../components/ProjectSkillsModal';
@@ -53,6 +60,24 @@ type Props = {
     dashboardContext?: AgentBiDrawerContext | null;
 };
 
+const DEFAULT_TABS: CanvasTab[] = [
+    { cards: [], id: 'tab-overview', name: 'Overview' },
+];
+
+const loadSavedTabs = (projectUuid: string): CanvasTab[] => {
+    try {
+        const raw = localStorage.getItem(`agent-bi-canvas:${projectUuid}`);
+        if (!raw) return DEFAULT_TABS;
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed as CanvasTab[];
+        }
+    } catch {
+        // Ignore malformed localStorage state.
+    }
+    return DEFAULT_TABS;
+};
+
 const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const { projectUuid = '' } = useParams();
     const {
@@ -74,7 +99,143 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const [skillsOpen, setSkillsOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [tabs, setTabs] = useState<CanvasTab[]>(() =>
+        loadSavedTabs(projectUuid),
+    );
+    const [activeTabId, setActiveTabId] = useState<string>(
+        () => loadSavedTabs(projectUuid)[0]?.id ?? 'tab-overview',
+    );
     const activeThread = selectedThread ?? threads?.[0]?.threadUuid ?? null;
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(
+                `agent-bi-canvas:${projectUuid}`,
+                JSON.stringify(tabs),
+            );
+        } catch {
+            // Ignore storage quota errors.
+        }
+    }, [projectUuid, tabs]);
+
+    const pinCardToTab = (payload: {
+        metadata?: AgentBiChartMetadata;
+        mode?: AgentBiChartViewMode;
+        preview: AgentBiQueryPreview;
+    }) => {
+        setTabs((current) =>
+            current.map((tab) => {
+                if (tab.id !== activeTabId) return tab;
+                const count = tab.cards.length;
+                const nextCard: CanvasCard = {
+                    h: 9,
+                    id: `card-${Date.now()}-${count}`,
+                    metadata: {
+                        title: deriveChartTitle(payload.preview),
+                        ...payload.metadata,
+                    },
+                    mode: payload.mode ?? 'auto',
+                    preview: payload.preview,
+                    w: 6,
+                    x: (count % 2) * 6,
+                    y: Math.floor(count / 2) * 9,
+                };
+                return { ...tab, cards: [...tab.cards, nextCard] };
+            }),
+        );
+    };
+
+    const handleAddTab = (name: string) => {
+        const id = `tab-${Date.now()}`;
+        setTabs((current) => [...current, { cards: [], id, name }]);
+        setActiveTabId(id);
+    };
+
+    const handleRemoveTab = (tabId: string) => {
+        setTabs((current) => {
+            if (current.length <= 1) return current;
+            const filtered = current.filter((tab) => tab.id !== tabId);
+            if (activeTabId === tabId && filtered[0]) {
+                setActiveTabId(filtered[0].id);
+            }
+            return filtered;
+        });
+    };
+
+    const handleRemoveCard = (tabId: string, cardId: string) => {
+        setTabs((current) =>
+            current.map((tab) =>
+                tab.id === tabId
+                    ? {
+                          ...tab,
+                          cards: tab.cards.filter((card) => card.id !== cardId),
+                      }
+                    : tab,
+            ),
+        );
+    };
+
+    const handleUpdateCardMode = (
+        tabId: string,
+        cardId: string,
+        mode: AgentBiChartViewMode,
+    ) => {
+        setTabs((current) =>
+            current.map((tab) =>
+                tab.id === tabId
+                    ? {
+                          ...tab,
+                          cards: tab.cards.map((card) =>
+                              card.id === cardId ? { ...card, mode } : card,
+                          ),
+                      }
+                    : tab,
+            ),
+        );
+    };
+
+    const handleUpdateCardMetadata = (
+        tabId: string,
+        cardId: string,
+        metadata: AgentBiChartMetadata,
+    ) => {
+        setTabs((current) =>
+            current.map((tab) =>
+                tab.id === tabId
+                    ? {
+                          ...tab,
+                          cards: tab.cards.map((card) =>
+                              card.id === cardId ? { ...card, metadata } : card,
+                          ),
+                      }
+                    : tab,
+            ),
+        );
+    };
+
+    const handleUpdateLayouts = (tabId: string, layouts: Layout[]) => {
+        const byId = new Map(layouts.map((item) => [item.i, item]));
+        setTabs((current) =>
+            current.map((tab) =>
+                tab.id === tabId
+                    ? {
+                          ...tab,
+                          cards: tab.cards.map((card) => {
+                              const next = byId.get(card.id);
+                              if (!next) return card;
+                              return {
+                                  ...card,
+                                  h: next.h,
+                                  w: next.w,
+                                  x: next.x,
+                                  y: next.y,
+                              };
+                          }),
+                      }
+                    : tab,
+            ),
+        );
+    };
 
     const handleCreate = async () => {
         if (title.trim().length === 0) {
@@ -129,6 +290,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         preview,
                     },
                 ]);
+                pinCardToTab({ preview });
             }
         } else if (event.type === 'error') {
             appendLine('error', 'The turn failed.');
@@ -226,6 +388,19 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             p="lg"
             wrap="nowrap"
         >
+            <Stack gap="md" className={classes.canvas}>
+                <AgentBiCanvasBoard
+                    tabs={tabs}
+                    activeTabId={activeTabId}
+                    onSelectTab={setActiveTabId}
+                    onAddTab={handleAddTab}
+                    onRemoveTab={handleRemoveTab}
+                    onRemoveCard={handleRemoveCard}
+                    onUpdateCardMode={handleUpdateCardMode}
+                    onUpdateCardMetadata={handleUpdateCardMetadata}
+                    onUpdateLayouts={handleUpdateLayouts}
+                />
+            </Stack>
             <Stack
                 gap="md"
                 className={
@@ -242,7 +417,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         title="Expand sidebar"
                         onClick={() => setSidebarCollapsed(false)}
                     >
-                        <IconLayoutSidebarLeftExpand size={18} />
+                        <IconLayoutSidebarRightExpand size={18} />
                     </ActionIcon>
                 ) : (
                     <>
@@ -256,129 +431,164 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 title="Collapse sidebar"
                                 onClick={() => setSidebarCollapsed(true)}
                             >
-                                <IconLayoutSidebarLeftCollapse size={18} />
+                                <IconLayoutSidebarRightCollapse size={18} />
                             </ActionIcon>
                         </Group>
-                        <Stack gap="sm">
+                        <Stack gap="xs">
+                            <Group gap="xs" wrap="nowrap">
+                                <TextInput
+                                    size="xs"
+                                    flex={1}
+                                    aria-label="New thread title"
+                                    placeholder="New thread title"
+                                    value={title}
+                                    onChange={(event) =>
+                                        setTitle(event.currentTarget.value)
+                                    }
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            void handleCreate();
+                                        }
+                                    }}
+                                />
+                                <Button
+                                    size="xs"
+                                    onClick={() => void handleCreate()}
+                                >
+                                    New thread
+                                </Button>
+                            </Group>
+                            <Stack gap={4} className={classes.threadList}>
+                                {isLoading ? (
+                                    <EmptyStateLoader title="Loading threads…" />
+                                ) : error !== null && error !== undefined ? (
+                                    <InlineErrorState message="Could not load threads." />
+                                ) : (threads ?? []).length === 0 ? (
+                                    <Paper variant="dotted" p="xs">
+                                        <Text c="dimmed" fz="xs" ta="center">
+                                            No threads yet.
+                                        </Text>
+                                    </Paper>
+                                ) : (
+                                    (threads ?? []).map((thread) => (
+                                        <Paper
+                                            key={thread.threadUuid}
+                                            p="xs"
+                                            withBorder
+                                            onClick={() => {
+                                                setSelectedThread(
+                                                    thread.threadUuid,
+                                                );
+                                                setLines([]);
+                                            }}
+                                            className={
+                                                thread.threadUuid ===
+                                                activeThread
+                                                    ? `${classes.threadItem} is-active`
+                                                    : classes.threadItem
+                                            }
+                                        >
+                                            <Text fw={500} fz="xs" truncate>
+                                                {thread.title || 'Untitled'}
+                                            </Text>
+                                        </Paper>
+                                    ))
+                                )}
+                            </Stack>
+                            <Group gap="xs" grow>
+                                <Button
+                                    size="xs"
+                                    variant="default"
+                                    onClick={() => setSkillsOpen(true)}
+                                >
+                                    Project skills
+                                </Button>
+                                <Button
+                                    size="xs"
+                                    variant="default"
+                                    onClick={() => setDrawerOpen(true)}
+                                >
+                                    Live context
+                                </Button>
+                            </Group>
+                        </Stack>
+                        <Stack gap="sm" className={classes.messagesPane}>
+                            {persisted.length > 0 ? (
+                                <Stack gap="xs">
+                                    {persisted.map((content, index) => (
+                                        <Paper key={index} p="sm" withBorder>
+                                            <Text fz="sm">{content}</Text>
+                                        </Paper>
+                                    ))}
+                                </Stack>
+                            ) : null}
+                            {lines.map((line) =>
+                                line.kind === 'query-artifact' ? (
+                                    <Paper key={line.id} p="xs" withBorder>
+                                        <Group
+                                            justify="space-between"
+                                            wrap="nowrap"
+                                        >
+                                            <Text fz="xs" fw={500} truncate>
+                                                {deriveChartTitle(line.preview)}
+                                            </Text>
+                                            <Button
+                                                size="compact-xs"
+                                                variant="light"
+                                                onClick={() =>
+                                                    pinCardToTab({
+                                                        preview: line.preview,
+                                                    })
+                                                }
+                                            >
+                                                Pin to tab
+                                            </Button>
+                                        </Group>
+                                    </Paper>
+                                ) : (
+                                    <Paper key={line.id} p="sm" withBorder>
+                                        <Text fz="xs" c="dimmed">
+                                            {line.role}
+                                        </Text>
+                                        <Text fz="sm">{line.text}</Text>
+                                    </Paper>
+                                ),
+                            )}
+                            {pending !== null ? (
+                                <AgentBiApprovalCard
+                                    approvalUuid={pending.approvalUuid}
+                                    input={pending.input}
+                                    onDecide={(decision) =>
+                                        void handleDecide(decision)
+                                    }
+                                    tool={pending.tool}
+                                />
+                            ) : null}
+                        </Stack>
+                        <Group gap="sm">
                             <TextInput
-                                aria-label="New thread title"
-                                placeholder="New thread title"
-                                value={title}
+                                aria-label="Ask a question"
+                                placeholder="Ask a question…"
+                                value={draft}
+                                flex={1}
                                 onChange={(event) =>
-                                    setTitle(event.currentTarget.value)
+                                    setDraft(event.currentTarget.value)
                                 }
                                 onKeyDown={(event) => {
                                     if (event.key === 'Enter') {
-                                        void handleCreate();
+                                        void handleSend();
                                     }
                                 }}
                             />
-                            <Button onClick={() => void handleCreate()}>
-                                New thread
+                            <Button
+                                onClick={() => void handleSend()}
+                                loading={streaming}
+                            >
+                                Send
                             </Button>
-                        </Stack>
-                        {isLoading ? (
-                            <EmptyStateLoader title="Loading threads…" />
-                        ) : error !== null && error !== undefined ? (
-                            <InlineErrorState message="Could not load threads." />
-                        ) : (threads ?? []).length === 0 ? (
-                            <Paper variant="dotted" p="md">
-                                <Text c="dimmed" ta="center">
-                                    No threads yet.
-                                </Text>
-                            </Paper>
-                        ) : (
-                            (threads ?? []).map((thread) => (
-                                <Paper
-                                    key={thread.threadUuid}
-                                    p="sm"
-                                    withBorder
-                                    onClick={() => {
-                                        setSelectedThread(thread.threadUuid);
-                                        setLines([]);
-                                    }}
-                                    className={
-                                        thread.threadUuid === activeThread
-                                            ? 'is-active'
-                                            : undefined
-                                    }
-                                >
-                                    <Text fw={500} truncate>
-                                        {thread.title || 'Untitled'}
-                                    </Text>
-                                </Paper>
-                            ))
-                        )}
-                        <Button
-                            variant="default"
-                            onClick={() => setSkillsOpen(true)}
-                        >
-                            Project skills
-                        </Button>
-                        <Button
-                            variant="default"
-                            onClick={() => setDrawerOpen(true)}
-                        >
-                            Live context
-                        </Button>
+                        </Group>
                     </>
                 )}
-            </Stack>
-            <Stack gap="md" className={classes.conversation}>
-                {persisted.length > 0 ? (
-                    <Stack gap="xs">
-                        {persisted.map((content, index) => (
-                            <Paper key={index} p="sm" withBorder>
-                                <Text fz="sm">{content}</Text>
-                            </Paper>
-                        ))}
-                    </Stack>
-                ) : null}
-                {lines.map((line) =>
-                    line.kind === 'query-artifact' ? (
-                        <AgentBiQueryArtifact
-                            key={line.id}
-                            preview={line.preview}
-                        />
-                    ) : (
-                        <Paper key={line.id} p="sm" withBorder>
-                            <Text fz="xs" c="dimmed">
-                                {line.role}
-                            </Text>
-                            <Text fz="sm">{line.text}</Text>
-                        </Paper>
-                    ),
-                )}
-                {pending !== null ? (
-                    <AgentBiApprovalCard
-                        approvalUuid={pending.approvalUuid}
-                        input={pending.input}
-                        onDecide={(decision) => void handleDecide(decision)}
-                        tool={pending.tool}
-                    />
-                ) : null}
-                <Group gap="sm">
-                    <TextInput
-                        aria-label="Ask a question"
-                        placeholder="Ask a question…"
-                        value={draft}
-                        flex={1}
-                        onChange={(event) =>
-                            setDraft(event.currentTarget.value)
-                        }
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                                void handleSend();
-                            }
-                        }}
-                    />
-                    <Button
-                        onClick={() => void handleSend()}
-                        loading={streaming}
-                    >
-                        Send
-                    </Button>
-                </Group>
             </Stack>
             <ProjectSkillsModal
                 opened={skillsOpen}

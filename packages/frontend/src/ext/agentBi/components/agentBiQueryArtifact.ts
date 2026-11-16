@@ -96,6 +96,34 @@ export type AgentBiChartViewMode =
     | 'pie'
     | 'table';
 
+export type AgentBiChartMetadata = {
+    denominator?: string;
+    showDataLabels?: boolean;
+    subtitle?: string;
+    title?: string;
+    xAxisLabel?: string;
+    yAxisLabel?: string;
+};
+
+export const deriveChartTitle = (preview: AgentBiQueryPreview): string => {
+    const metricLabels = preview.metrics.map(
+        (id) => preview.columns[id]?.label ?? id,
+    );
+    const dimLabels = preview.dimensions.map(
+        (id) => preview.columns[id]?.label ?? id,
+    );
+    if (metricLabels.length > 0 && dimLabels.length > 0) {
+        return `${metricLabels.join(', ')} by ${dimLabels.join(', ')}`;
+    }
+    if (metricLabels.length > 0) {
+        return metricLabels.join(', ');
+    }
+    if (dimLabels.length > 0) {
+        return `${dimLabels.join(', ')} breakdown`;
+    }
+    return 'Query result';
+};
+
 const isTemporalDimension = (type: string | null | undefined): boolean => {
     const normalized = toDimensionType(type ?? null);
     return (
@@ -130,31 +158,66 @@ const buildCartesianConfig = (
     xField: string,
     yFields: string[],
     seriesType: CartesianSeriesType,
-    flipAxes = false,
-): ChartConfig => ({
-    type: ChartType.CARTESIAN,
-    config: {
-        layout: { flipAxes, xField, yField: yFields },
-        eChartsConfig: {
-            legend: { selected: {} },
-            series: yFields.map((yField) => ({
-                encode: {
-                    xRef: { field: xField },
-                    yRef: { field: yField },
-                },
-                ...(seriesType === CartesianSeriesType.LINE ||
-                seriesType === CartesianSeriesType.AREA
-                    ? { smooth: true }
-                    : {}),
-                type: seriesType,
-            })),
-        },
+    options: {
+        flipAxes?: boolean;
+        showDataLabels: boolean;
+        xAxisLabel?: string;
+        yAxisLabel?: string;
     },
-});
+): ChartConfig => {
+    const flipAxes = options.flipAxes ?? false;
+    return {
+        type: ChartType.CARTESIAN,
+        config: {
+            layout: { flipAxes, xField, yField: yFields },
+            eChartsConfig: {
+                legend: { selected: {} },
+                ...(options.xAxisLabel
+                    ? {
+                          xAxis: [
+                              {
+                                  name: options.xAxisLabel,
+                                  nameGap: 28,
+                                  nameLocation: 'middle',
+                              },
+                          ],
+                      }
+                    : {}),
+                ...(options.yAxisLabel
+                    ? {
+                          yAxis: [
+                              {
+                                  name: options.yAxisLabel,
+                                  nameGap: 42,
+                                  nameLocation: 'middle',
+                              },
+                          ],
+                      }
+                    : {}),
+                series: yFields.map((yField) => ({
+                    encode: {
+                        xRef: { field: xField },
+                        yRef: { field: yField },
+                    },
+                    label: {
+                        position: flipAxes ? 'right' : 'top',
+                        show: options.showDataLabels,
+                    },
+                    ...(seriesType === CartesianSeriesType.LINE ||
+                    seriesType === CartesianSeriesType.AREA
+                        ? { smooth: true }
+                        : {}),
+                    type: seriesType,
+                })),
+            },
+        },
+    };
+};
 
 export const buildAgentBiQueryOutput = (
     preview: AgentBiQueryPreview,
     mode: AgentBiChartViewMode = 'auto',
+    metadata: AgentBiChartMetadata = {},
 ): RenderedChart => {
     const dimensions = preview.dimensions.filter((fieldId) =>
         Object.hasOwn(preview.columns, fieldId),
@@ -186,6 +249,18 @@ export const buildAgentBiQueryOutput = (
         metrics,
         mode,
     );
+    const xAxisLabel =
+        metadata.xAxisLabel ??
+        (dimensions[0]
+            ? (preview.columns[dimensions[0]]?.label ?? dimensions[0])
+            : undefined);
+    const yAxisLabel =
+        metadata.yAxisLabel ??
+        (metrics[0]
+            ? (preview.columns[metrics[0]]?.label ?? metrics[0])
+            : undefined);
+    const showDataLabels = metadata.showDataLabels ?? true;
+
     if (
         mode === 'auto' &&
         metrics.length > 0 &&
@@ -194,7 +269,11 @@ export const buildAgentBiQueryOutput = (
     ) {
         chartConfig = {
             type: ChartType.BIG_NUMBER,
-            config: { selectedField: metrics[0] },
+            config: {
+                label: metadata.title ?? yAxisLabel,
+                selectedField: metrics[0],
+                showBigNumberLabel: true,
+            },
         };
     } else if (
         effectiveMode !== 'table' &&
@@ -207,6 +286,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.LINE,
+                    { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
             case 'area':
@@ -214,6 +294,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.AREA,
+                    { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
             case 'horizontal_bar':
@@ -221,7 +302,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.BAR,
-                    true,
+                    { flipAxes: true, showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
             case 'pie':
@@ -233,6 +314,7 @@ export const buildAgentBiQueryOutput = (
                         metricId: metrics[0],
                         showPercentage: true,
                         showValue: true,
+                        valueLabel: 'outside',
                     },
                 };
                 break;
@@ -242,6 +324,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.BAR,
+                    { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
         }
