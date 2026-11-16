@@ -341,6 +341,6 @@ export const buildAgentBiQueryOutput = (
             query: { dimensions, metrics },
             rows,
         },
-        { colorPalette: AGENT_BI_PALETTE },
+        { colors: { palette: AGENT_BI_PALETTE } },
     );
 };
