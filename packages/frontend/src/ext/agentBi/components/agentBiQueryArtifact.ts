@@ -174,24 +174,12 @@ const buildCartesianConfig = (
                 legend: { selected: {} },
                 ...(options.xAxisLabel
                     ? {
-                          xAxis: [
-                              {
-                                  name: options.xAxisLabel,
-                                  nameGap: 28,
-                                  nameLocation: 'middle',
-                              },
-                          ],
+                          xAxis: [{ name: options.xAxisLabel }],
                       }
                     : {}),
                 ...(options.yAxisLabel
                     ? {
-                          yAxis: [
-                              {
-                                  name: options.yAxisLabel,
-                                  nameGap: 42,
-                                  nameLocation: 'middle',
-                              },
-                          ],
+                          yAxis: [{ name: options.yAxisLabel }],
                       }
                     : {}),
                 series: yFields.map((yField) => ({
