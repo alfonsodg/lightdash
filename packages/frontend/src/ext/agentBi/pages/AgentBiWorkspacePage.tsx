@@ -1,5 +1,17 @@
 // Slice 2-3: full-page thread workspace with SSE streaming chat.
-import { Button, Group, Paper, Stack, Text, TextInput } from '@mantine/core';
+import {
+    ActionIcon,
+    Button,
+    Group,
+    Paper,
+    Stack,
+    Text,
+    TextInput,
+} from '@mantine/core';
+import {
+    IconLayoutSidebarLeftCollapse,
+    IconLayoutSidebarLeftExpand,
+} from '@tabler/icons-react';
 import { useState, type FC } from 'react';
 import { useParams } from 'react-router';
 import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
@@ -60,6 +72,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const [pending, setPending] = useState<PendingApproval | null>(null);
     const [streaming, setStreaming] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const activeThread = selectedThread ?? threads?.[0]?.threadUuid ?? null;
 
@@ -213,66 +226,103 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             p="lg"
             wrap="nowrap"
         >
-            <Stack gap="md" className={classes.sidebar}>
-                <Text fw={600} fz="lg">
-                    Ask AI
-                </Text>
-                <Stack gap="sm">
-                    <TextInput
-                        aria-label="New thread title"
-                        placeholder="New thread title"
-                        value={title}
-                        onChange={(event) =>
-                            setTitle(event.currentTarget.value)
-                        }
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                                void handleCreate();
-                            }
-                        }}
-                    />
-                    <Button onClick={() => void handleCreate()}>
-                        New thread
-                    </Button>
-                </Stack>
-                {isLoading ? (
-                    <EmptyStateLoader title="Loading threads…" />
-                ) : error !== null && error !== undefined ? (
-                    <InlineErrorState message="Could not load threads." />
-                ) : (threads ?? []).length === 0 ? (
-                    <Paper variant="dotted" p="md">
-                        <Text c="dimmed" ta="center">
-                            No threads yet.
-                        </Text>
-                    </Paper>
+            <Stack
+                gap="md"
+                className={
+                    sidebarCollapsed
+                        ? classes.sidebarCollapsed
+                        : classes.sidebar
+                }
+            >
+                {sidebarCollapsed ? (
+                    <ActionIcon
+                        variant="default"
+                        size="lg"
+                        aria-label="Expand sidebar"
+                        title="Expand sidebar"
+                        onClick={() => setSidebarCollapsed(false)}
+                    >
+                        <IconLayoutSidebarLeftExpand size={18} />
+                    </ActionIcon>
                 ) : (
-                    (threads ?? []).map((thread) => (
-                        <Paper
-                            key={thread.threadUuid}
-                            p="sm"
-                            withBorder
-                            onClick={() => {
-                                setSelectedThread(thread.threadUuid);
-                                setLines([]);
-                            }}
-                            className={
-                                thread.threadUuid === activeThread
-                                    ? 'is-active'
-                                    : undefined
-                            }
-                        >
-                            <Text fw={500} truncate>
-                                {thread.title || 'Untitled'}
+                    <>
+                        <Group justify="space-between" wrap="nowrap">
+                            <Text fw={600} fz="lg">
+                                Ask AI
                             </Text>
-                        </Paper>
-                    ))
+                            <ActionIcon
+                                variant="subtle"
+                                aria-label="Collapse sidebar"
+                                title="Collapse sidebar"
+                                onClick={() => setSidebarCollapsed(true)}
+                            >
+                                <IconLayoutSidebarLeftCollapse size={18} />
+                            </ActionIcon>
+                        </Group>
+                        <Stack gap="sm">
+                            <TextInput
+                                aria-label="New thread title"
+                                placeholder="New thread title"
+                                value={title}
+                                onChange={(event) =>
+                                    setTitle(event.currentTarget.value)
+                                }
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        void handleCreate();
+                                    }
+                                }}
+                            />
+                            <Button onClick={() => void handleCreate()}>
+                                New thread
+                            </Button>
+                        </Stack>
+                        {isLoading ? (
+                            <EmptyStateLoader title="Loading threads…" />
+                        ) : error !== null && error !== undefined ? (
+                            <InlineErrorState message="Could not load threads." />
+                        ) : (threads ?? []).length === 0 ? (
+                            <Paper variant="dotted" p="md">
+                                <Text c="dimmed" ta="center">
+                                    No threads yet.
+                                </Text>
+                            </Paper>
+                        ) : (
+                            (threads ?? []).map((thread) => (
+                                <Paper
+                                    key={thread.threadUuid}
+                                    p="sm"
+                                    withBorder
+                                    onClick={() => {
+                                        setSelectedThread(thread.threadUuid);
+                                        setLines([]);
+                                    }}
+                                    className={
+                                        thread.threadUuid === activeThread
+                                            ? 'is-active'
+                                            : undefined
+                                    }
+                                >
+                                    <Text fw={500} truncate>
+                                        {thread.title || 'Untitled'}
+                                    </Text>
+                                </Paper>
+                            ))
+                        )}
+                        <Button
+                            variant="default"
+                            onClick={() => setSkillsOpen(true)}
+                        >
+                            Project skills
+                        </Button>
+                        <Button
+                            variant="default"
+                            onClick={() => setDrawerOpen(true)}
+                        >
+                            Live context
+                        </Button>
+                    </>
                 )}
-                <Button variant="default" onClick={() => setSkillsOpen(true)}>
-                    Project skills
-                </Button>
-                <Button variant="default" onClick={() => setDrawerOpen(true)}>
-                    Live context
-                </Button>
             </Stack>
             <Stack gap="md" className={classes.conversation}>
                 {persisted.length > 0 ? (

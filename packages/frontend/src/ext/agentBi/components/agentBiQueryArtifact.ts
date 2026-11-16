@@ -1,4 +1,5 @@
 import {
+    CartesianSeriesType,
     ChartType,
     DimensionType,
     FieldType,
@@ -86,8 +87,74 @@ const toMetricType = (type: string | null): MetricType => {
     }
 };
 
+export type AgentBiChartViewMode =
+    | 'auto'
+    | 'bar'
+    | 'horizontal_bar'
+    | 'line'
+    | 'area'
+    | 'pie'
+    | 'table';
+
+const isTemporalDimension = (type: string | null | undefined): boolean => {
+    const normalized = toDimensionType(type ?? null);
+    return (
+        normalized === DimensionType.DATE ||
+        normalized === DimensionType.TIMESTAMP
+    );
+};
+
+const resolveChartViewMode = (
+    preview: AgentBiQueryPreview,
+    dimensions: string[],
+    metrics: string[],
+    requested: AgentBiChartViewMode,
+): Exclude<AgentBiChartViewMode, 'auto'> => {
+    if (requested !== 'auto') {
+        return requested;
+    }
+    if (dimensions.length === 0 || metrics.length === 0) {
+        return 'table';
+    }
+    const primaryDim = preview.columns[dimensions[0]];
+    if (isTemporalDimension(primaryDim?.type)) {
+        return 'line';
+    }
+    if (preview.rows.length > 10) {
+        return 'horizontal_bar';
+    }
+    return 'bar';
+};
+
+const buildCartesianConfig = (
+    xField: string,
+    yFields: string[],
+    seriesType: CartesianSeriesType,
+    flipAxes = false,
+): ChartConfig => ({
+    type: ChartType.CARTESIAN,
+    config: {
+        layout: { flipAxes, xField, yField: yFields },
+        eChartsConfig: {
+            legend: { selected: {} },
+            series: yFields.map((yField) => ({
+                encode: {
+                    xRef: { field: xField },
+                    yRef: { field: yField },
+                },
+                ...(seriesType === CartesianSeriesType.LINE ||
+                seriesType === CartesianSeriesType.AREA
+                    ? { smooth: true }
+                    : {}),
+                type: seriesType,
+            })),
+        },
+    },
+});
+
 export const buildAgentBiQueryOutput = (
     preview: AgentBiQueryPreview,
+    mode: AgentBiChartViewMode = 'auto',
 ): RenderedChart => {
     const dimensions = preview.dimensions.filter((fieldId) =>
         Object.hasOwn(preview.columns, fieldId),
@@ -113,19 +180,71 @@ export const buildAgentBiQueryOutput = (
     );
     const rows = toResultRows(preview.rows as RawResultRow[], fields);
     let chartConfig: ChartConfig;
-    if (dimensions.length > 0 && metrics.length > 0) {
-        chartConfig = {
-            type: ChartType.CARTESIAN,
-            config: {
-                layout: { xField: dimensions[0], yField: metrics },
-                eChartsConfig: { legend: { selected: {} } },
-            },
-        };
-    } else if (metrics.length > 0 && rows.length === 1) {
+    const effectiveMode = resolveChartViewMode(
+        preview,
+        dimensions,
+        metrics,
+        mode,
+    );
+    if (
+        mode === 'auto' &&
+        metrics.length > 0 &&
+        dimensions.length === 0 &&
+        rows.length === 1
+    ) {
         chartConfig = {
             type: ChartType.BIG_NUMBER,
             config: { selectedField: metrics[0] },
         };
+    } else if (
+        effectiveMode !== 'table' &&
+        dimensions.length > 0 &&
+        metrics.length > 0
+    ) {
+        switch (effectiveMode) {
+            case 'line':
+                chartConfig = buildCartesianConfig(
+                    dimensions[0],
+                    metrics,
+                    CartesianSeriesType.LINE,
+                );
+                break;
+            case 'area':
+                chartConfig = buildCartesianConfig(
+                    dimensions[0],
+                    metrics,
+                    CartesianSeriesType.AREA,
+                );
+                break;
+            case 'horizontal_bar':
+                chartConfig = buildCartesianConfig(
+                    dimensions[0],
+                    metrics,
+                    CartesianSeriesType.BAR,
+                    true,
+                );
+                break;
+            case 'pie':
+                chartConfig = {
+                    type: ChartType.PIE,
+                    config: {
+                        groupFieldIds: [dimensions[0]],
+                        isDonut: true,
+                        metricId: metrics[0],
+                        showPercentage: true,
+                        showValue: true,
+                    },
+                };
+                break;
+            case 'bar':
+            default:
+                chartConfig = buildCartesianConfig(
+                    dimensions[0],
+                    metrics,
+                    CartesianSeriesType.BAR,
+                );
+                break;
+        }
     } else {
         chartConfig = { type: ChartType.TABLE };
     }

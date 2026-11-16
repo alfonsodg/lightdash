@@ -92,4 +92,14 @@ describe('agent BI query artifacts', () => {
             }).kind,
         ).toBe('table');
     });
+
+    it('supports switching to table, line, area, horizontal_bar, and pie modes', () => {
+        expect(buildAgentBiQueryOutput(preview, 'table').kind).toBe('table');
+        expect(buildAgentBiQueryOutput(preview, 'line').kind).toBe('echarts');
+        expect(buildAgentBiQueryOutput(preview, 'area').kind).toBe('echarts');
+        expect(buildAgentBiQueryOutput(preview, 'horizontal_bar').kind).toBe(
+            'echarts',
+        );
+        expect(buildAgentBiQueryOutput(preview, 'pie').kind).toBe('echarts');
+    });
 });
