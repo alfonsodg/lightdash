@@ -155,28 +155,43 @@ export const createOpenAiChatClient = (options: {
                         : 'The model request failed.';
                 throw new LlmChatError('UPSTREAM_ERROR', message);
             }
-            const choice = completion.choices[0];
-            if (choice === undefined) {
+            if (completion.choices.length === 0) {
                 throw new LlmChatError(
                     'UPSTREAM_ERROR',
                     'The model returned no choices.',
                 );
             }
-            const toolCalls = (choice.message.tool_calls ?? [])
+            const toolCalls = completion.choices.flatMap((choice) =>
+                (choice.message.tool_calls ?? [])
+                    .filter(
+                        (
+                            call,
+                        ): call is Extract<typeof call, { type: 'function' }> =>
+                            call.type === 'function',
+                    )
+                    .map((call) => ({
+                        arguments: call.function.arguments,
+                        id: call.id,
+                        name: call.function.name,
+                    })),
+            );
+            const contentParts = completion.choices
+                .map((choice) => choice.message.content)
                 .filter(
-                    (
-                        call,
-                    ): call is Extract<typeof call, { type: 'function' }> =>
-                        call.type === 'function',
-                )
-                .map((call) => ({
-                    arguments: call.function.arguments,
-                    id: call.id,
-                    name: call.function.name,
-                }));
+                    (part): part is string =>
+                        typeof part === 'string' && part.length > 0,
+                );
+            const toolChoice = completion.choices.find(
+                (choice) => (choice.message.tool_calls?.length ?? 0) > 0,
+            );
+            const finishReason =
+                toolChoice?.finish_reason ??
+                completion.choices.at(-1)?.finish_reason ??
+                completion.choices[0].finish_reason;
             return {
-                content: choice.message.content,
-                finishReason: choice.finish_reason,
+                content:
+                    contentParts.length > 0 ? contentParts.join('\n') : null,
+                finishReason,
                 toolCalls,
                 usage: {
                     completionTokens: completion.usage?.completion_tokens ?? 0,

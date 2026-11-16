@@ -127,4 +127,66 @@ describe('openai chat client', () => {
             }),
         ).rejects.toThrow();
     });
+
+    it('aggregates text and tool_calls across multiple choices', async () => {
+        const client = createOpenAiChatClient({
+            apiKey: 'test-key',
+            baseUrl: 'https://llm.example',
+            fetchImpl: async () =>
+                new Response(
+                    JSON.stringify({
+                        choices: [
+                            {
+                                index: 0,
+                                message: {
+                                    content: 'Inspecting orders first.',
+                                    role: 'assistant',
+                                },
+                            },
+                            {
+                                finish_reason: 'tool_calls',
+                                index: 1,
+                                message: {
+                                    role: 'assistant',
+                                    tool_calls: [
+                                        {
+                                            function: {
+                                                arguments:
+                                                    '{"exploreId":"orders","projectUuid":"p"}',
+                                                name: 'get_explore',
+                                            },
+                                            id: 'call_2',
+                                            type: 'function',
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                        created: 1,
+                        id: 'chatcmpl-split',
+                        model: 'deepseek-v4.1-flash',
+                        object: 'chat.completion',
+                        usage: { completion_tokens: 15, prompt_tokens: 20 },
+                    }),
+                    {
+                        headers: { 'content-type': 'application/json' },
+                        status: 200,
+                    },
+                ),
+            model: 'deepseek-v4.1-flash',
+        });
+
+        const result = await client.complete({
+            messages: [{ content: 'hi', role: 'user' }],
+        });
+        expect(result.content).toBe('Inspecting orders first.');
+        expect(result.finishReason).toBe('tool_calls');
+        expect(result.toolCalls).toEqual([
+            {
+                arguments: '{"exploreId":"orders","projectUuid":"p"}',
+                id: 'call_2',
+                name: 'get_explore',
+            },
+        ]);
+    });
 });
