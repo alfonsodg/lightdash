@@ -120,7 +120,8 @@ export const TOOL_CATALOG: readonly ToolCatalogEntry[] = [
     },
     {
         capability: TOOL_CAPABILITIES.run_metric_query,
-        description: 'Run a governed metric query and poll it ready.',
+        description:
+            'Run a governed metric query and poll it ready. Use underscore Lightdash field IDs (<tableName>_<fieldName>, e.g. orders_status) for dimensions, metrics, and sorts.',
         inputSchema: runMetricQueryInputSchema,
         name: 'run_metric_query',
     },
