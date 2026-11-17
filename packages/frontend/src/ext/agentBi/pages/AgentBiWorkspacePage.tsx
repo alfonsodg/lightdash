@@ -28,6 +28,7 @@ import AgentBiCanvasBoard, {
 import AgentBiContextualDrawer, {
     type AgentBiDrawerContext,
 } from '../components/AgentBiContextualDrawer';
+import AgentBiLeftSidebar from '../components/AgentBiLeftSidebar';
 import {
     deriveChartTitle,
     parseAgentBiQueryPreview,
@@ -99,6 +100,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const [pending, setPending] = useState<PendingApproval | null>(null);
     const [streaming, setStreaming] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
+    const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [tabs, setTabs] = useState<CanvasTab[]>(() =>
@@ -384,12 +386,25 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
 
     return (
         <Group
-            align="flex-start"
+            align="stretch"
             className={classes.layout}
-            gap="lg"
-            p="lg"
+            gap="md"
+            p="md"
             wrap="nowrap"
         >
+            <AgentBiLeftSidebar
+                activeTabId={activeTabId}
+                collapsed={leftSidebarCollapsed}
+                hasDashboardContext={dashboardContext !== null}
+                onOpenLiveContext={() => setDrawerOpen(true)}
+                onOpenSkills={() => setSkillsOpen(true)}
+                onSelectTab={setActiveTabId}
+                onToggleCollapse={() =>
+                    setLeftSidebarCollapsed((prev) => !prev)
+                }
+                projectUuid={projectUuid}
+                tabs={tabs}
+            />
             <Stack gap="md" className={classes.canvas}>
                 <AgentBiCanvasBoard
                     tabs={tabs}
@@ -405,6 +420,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             </Stack>
             <Stack
                 gap="md"
+                data-testid="agent-bi-right-sidebar"
                 className={
                     sidebarCollapsed
                         ? classes.sidebarCollapsed
@@ -413,7 +429,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             >
                 {sidebarCollapsed ? (
                     <ActionIcon
-                        variant="default"
+                        variant="light"
+                        color="indigo"
                         size="lg"
                         aria-label="Expand sidebar"
                         title="Expand sidebar"
@@ -426,24 +443,30 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         <Group justify="space-between" wrap="nowrap">
                             <Group gap="xs" wrap="nowrap">
                                 <ThemeIcon
-                                    variant="light"
-                                    color="indigo"
+                                    variant="gradient"
+                                    gradient={{
+                                        from: 'indigo',
+                                        to: 'cyan',
+                                        deg: 135,
+                                    }}
                                     size="md"
                                     radius="md"
                                 >
                                     <IconSparkles size={16} />
                                 </ThemeIcon>
-                                <Text fw={600} fz="lg">
+                                <Text fw={700} fz="lg" c="indigo.9">
                                     Ask AI
                                 </Text>
                             </Group>
                             <ActionIcon
-                                variant="subtle"
+                                variant="light"
+                                color="indigo"
+                                size="sm"
                                 aria-label="Collapse sidebar"
                                 title="Collapse sidebar"
                                 onClick={() => setSidebarCollapsed(true)}
                             >
-                                <IconLayoutSidebarRightCollapse size={18} />
+                                <IconLayoutSidebarRightCollapse size={16} />
                             </ActionIcon>
                         </Group>
                         <Stack gap="xs">
@@ -465,6 +488,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 />
                                 <Button
                                     size="xs"
+                                    color="indigo"
+                                    variant="filled"
                                     onClick={() => void handleCreate()}
                                 >
                                     New thread
@@ -507,22 +532,6 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                     ))
                                 )}
                             </Stack>
-                            <Group gap="xs" grow>
-                                <Button
-                                    size="xs"
-                                    variant="default"
-                                    onClick={() => setSkillsOpen(true)}
-                                >
-                                    Project skills
-                                </Button>
-                                <Button
-                                    size="xs"
-                                    variant="default"
-                                    onClick={() => setDrawerOpen(true)}
-                                >
-                                    Live context
-                                </Button>
-                            </Group>
                         </Stack>
                         <Stack gap="sm" className={classes.messagesPane}>
                             {persisted.length > 0 ? (
@@ -546,6 +555,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                             </Text>
                                             <Button
                                                 size="compact-xs"
+                                                color="teal"
                                                 variant="light"
                                                 onClick={() =>
                                                     pinCardToTab({
@@ -567,10 +577,20 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                                 ? classes.msgUser
                                                 : line.role === 'error'
                                                   ? classes.msgError
-                                                  : undefined
+                                                  : classes.msgAssistant
                                         }
                                     >
-                                        <Text fz="xs" fw={600} c="dimmed">
+                                        <Text
+                                            fz="xs"
+                                            fw={700}
+                                            c={
+                                                line.role === 'user'
+                                                    ? 'indigo.7'
+                                                    : line.role === 'error'
+                                                      ? 'red.7'
+                                                      : 'blue.7'
+                                            }
+                                        >
                                             {line.role}
                                         </Text>
                                         <Text fz="sm">{line.text}</Text>
@@ -604,6 +624,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 }}
                             />
                             <Button
+                                color="indigo"
+                                variant="filled"
                                 onClick={() => void handleSend()}
                                 loading={streaming}
                             >

@@ -80,6 +80,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                 {canSwitchChart ? (
                     <SegmentedControl
                         size="xs"
+                        color="indigo"
                         aria-label="Chart view mode"
                         value={mode}
                         onChange={(next) => {
@@ -96,7 +97,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                     <Popover width={280} position="bottom-end" shadow="md">
                         <Popover.Target>
                             <ActionIcon
-                                variant="subtle"
+                                variant="light"
+                                color="indigo"
                                 size="sm"
                                 aria-label="Edit chart labels"
                                 title="Edit title, subtitle, denominator, and axis labels"
@@ -178,7 +180,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                     </Popover>
                     {onPinToTab ? (
                         <ActionIcon
-                            variant="subtle"
+                            variant="light"
+                            color="teal"
                             size="sm"
                             aria-label="Pin to tab"
                             title="Pin to active dashboard tab"

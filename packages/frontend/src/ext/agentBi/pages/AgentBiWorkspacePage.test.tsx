@@ -211,4 +211,42 @@ describe('AgentBiWorkspacePage', () => {
             'userText',
         );
     });
+
+    it('renders 3 panels and collapses/expands both sidebars independently', () => {
+        render(
+            <MantineBaseProvider env="test">
+                <MemoryRouter>
+                    <AgentBiWorkspacePage />
+                </MemoryRouter>
+            </MantineBaseProvider>,
+        );
+
+        expect(screen.getByTestId('agent-bi-left-sidebar')).toBeInTheDocument();
+        expect(screen.getByText('BI Workspace Canvas')).toBeInTheDocument();
+        expect(
+            screen.getByTestId('agent-bi-right-sidebar'),
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Collapse workspace sidebar' }),
+        );
+        expect(
+            screen.getByRole('button', { name: 'Expand workspace sidebar' }),
+        ).toBeInTheDocument();
+        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Collapse sidebar' }),
+        );
+        expect(
+            screen.getByRole('button', { name: 'Expand sidebar' }),
+        ).toBeInTheDocument();
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Expand workspace sidebar' }),
+        );
+        expect(screen.getByText('Workspace')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+    });
 });

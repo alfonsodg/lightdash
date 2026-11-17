@@ -3,9 +3,36 @@
     width: 100%;
 }
 
+.tabBar {
+    background: #ffffff;
+    border: 1px solid var(--mantine-color-indigo-2);
+    border-radius: var(--mantine-radius-md);
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+    box-shadow: 0 2px 8px rgba(30, 64, 175, 0.04);
+}
+
 .tabs {
     flex: 1 1 auto;
     min-width: 0;
+}
+
+.tabs :global([role='tab'][data-active='true']) {
+    background: linear-gradient(
+        135deg,
+        var(--mantine-color-indigo-6),
+        var(--mantine-color-blue-6)
+    );
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.emptyCanvas {
+    background: linear-gradient(
+        180deg,
+        #ffffff 0%,
+        var(--mantine-color-indigo-0) 100%
+    );
+    border-color: var(--mantine-color-indigo-2);
 }
 
 .card {
@@ -13,16 +40,24 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
-    border-top: 3px solid var(--mantine-color-indigo-filled);
+    background: #ffffff;
+    border: 1px solid var(--mantine-color-indigo-2);
+    border-top: 4px solid var(--mantine-color-indigo-6);
+    box-shadow: 0 4px 14px rgba(29, 78, 216, 0.08);
 }
 
 .dragBar {
-    padding: 4px 8px;
+    padding: 5px 10px;
     border-radius: var(--mantine-radius-sm);
-    background: var(--mantine-color-default-hover);
+    background: linear-gradient(
+        90deg,
+        var(--mantine-color-indigo-0),
+        var(--mantine-color-cyan-0)
+    );
+    border: 1px solid var(--mantine-color-indigo-1);
 }
 
 .dragHandle {
     cursor: grab;
-    color: var(--mantine-color-indigo-light-color);
+    color: var(--mantine-color-indigo-7);
 }

@@ -1,6 +1,8 @@
 .layout {
     width: 100%;
     min-width: 0;
+    min-height: calc(100vh - 52px);
+    background: #f1f5fb;
 }
 
 .canvas {
@@ -9,18 +11,24 @@
 }
 
 .sidebar {
-    flex: 0 0 24rem;
+    flex: 0 0 23.5rem;
     min-width: 0;
-    border-left: 1px solid var(--mantine-color-default-border);
-    padding-left: var(--mantine-spacing-md);
+    background: #ffffff;
+    border-left: 1px solid var(--mantine-color-indigo-2);
+    padding: var(--mantine-spacing-md);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: 0 2px 10px rgba(30, 64, 175, 0.05);
 }
 
 .sidebarCollapsed {
-    flex: 0 0 2.75rem;
+    flex: 0 0 3rem;
     min-width: 0;
     align-items: center;
-    border-left: 1px solid var(--mantine-color-default-border);
-    padding-left: var(--mantine-spacing-xs);
+    background: #ffffff;
+    border-left: 1px solid var(--mantine-color-indigo-2);
+    padding: var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: 0 2px 10px rgba(30, 64, 175, 0.05);
 }
 
 .threadList {
@@ -30,32 +38,38 @@
 
 .threadItem {
     cursor: pointer;
+    background: #fafbff;
 }
 
 .threadItemActive {
     cursor: pointer;
-    background: var(--mantine-color-indigo-light);
-    border-color: var(--mantine-color-indigo-filled);
+    background: var(--mantine-color-indigo-0);
+    border-color: var(--mantine-color-indigo-5);
 }
 
 .messagesPane {
-    max-height: 45vh;
+    max-height: 48vh;
     overflow-y: auto;
 }
 
 .msgUser {
-    background: var(--mantine-color-indigo-light);
-    border-color: var(--mantine-color-indigo-outline);
+    background: var(--mantine-color-indigo-0);
+    border-color: var(--mantine-color-indigo-4);
+}
+
+.msgAssistant {
+    background: #f8faff;
+    border-color: var(--mantine-color-blue-2);
 }
 
 .msgError {
-    background: var(--mantine-color-red-light);
-    border-color: var(--mantine-color-red-outline);
+    background: var(--mantine-color-red-0);
+    border-color: var(--mantine-color-red-4);
 }
 
-@media (max-width: 48em) {
+@media (max-width: 62em) {
     .layout {
-        flex-direction: column-reverse;
+        flex-direction: column;
         align-items: stretch;
         flex-wrap: nowrap;
     }
@@ -70,9 +84,7 @@
         width: 100%;
         flex: 0 0 auto;
         border-left: none;
-        border-bottom: 1px solid var(--mantine-color-default-border);
-        padding-left: 0;
-        padding-bottom: var(--mantine-spacing-md);
+        border-top: 1px solid var(--mantine-color-indigo-2);
         align-items: stretch;
     }
 }

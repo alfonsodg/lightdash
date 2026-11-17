@@ -93,7 +93,13 @@ const AgentBiCanvasBoard: FC<Props> = ({
 
     return (
         <Stack gap="md" className={classes.board}>
-            <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+            <Group
+                justify="space-between"
+                align="center"
+                wrap="wrap"
+                gap="sm"
+                className={classes.tabBar}
+            >
                 <Tabs
                     value={activeTab?.id ?? null}
                     onChange={(value) => {
@@ -145,7 +151,8 @@ const AgentBiCanvasBoard: FC<Props> = ({
                     />
                     <Button
                         size="xs"
-                        variant="light"
+                        color="indigo"
+                        variant="filled"
                         leftSection={<IconPlus size={14} />}
                         onClick={handleCreateTab}
                     >
@@ -155,9 +162,16 @@ const AgentBiCanvasBoard: FC<Props> = ({
             </Group>
 
             {activeTab && activeTab.cards.length === 0 ? (
-                <Paper withBorder p="xl" radius="md">
+                <Paper
+                    withBorder
+                    p="xl"
+                    radius="md"
+                    className={classes.emptyCanvas}
+                >
                     <Stack gap="xs" align="center">
-                        <Text fw={600}>BI Workspace Canvas</Text>
+                        <Text fw={700} c="indigo.9">
+                            BI Workspace Canvas
+                        </Text>
                         <Text size="sm" c="dimmed" ta="center">
                             Ask a question in the right panel. Query charts and
                             tables appear here automatically and can be dragged,
