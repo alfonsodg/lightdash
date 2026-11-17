@@ -4,6 +4,7 @@ import {
     Button,
     Divider,
     Group,
+    MultiSelect,
     Paper,
     Stack,
     Text,
@@ -12,6 +13,7 @@ import {
 import {
     IconBook2,
     IconCompass,
+    IconDatabase,
     IconLayoutDashboard,
     IconLayoutSidebarLeftCollapse,
     IconLayoutSidebarLeftExpand,
@@ -23,25 +25,31 @@ import classes from './AgentBiLeftSidebar.module.css';
 
 type Props = {
     activeTabId: string;
+    availableSchemas: string[];
     collapsed: boolean;
     hasDashboardContext: boolean;
+    onChangeSelectedSchemas: (schemas: string[]) => void;
     onOpenLiveContext: () => void;
     onOpenSkills: () => void;
     onSelectTab: (tabId: string) => void;
     onToggleCollapse: () => void;
     projectUuid: string;
+    selectedSchemas: string[];
     tabs: CanvasTab[];
 };
 
 const AgentBiLeftSidebar: FC<Props> = ({
     activeTabId,
+    availableSchemas,
     collapsed,
     hasDashboardContext,
+    onChangeSelectedSchemas,
     onOpenLiveContext,
     onOpenSkills,
     onSelectTab,
     onToggleCollapse,
     projectUuid,
+    selectedSchemas,
     tabs,
 }) => {
     const totalCards = tabs.reduce((sum, tab) => sum + tab.cards.length, 0);
@@ -163,6 +171,50 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         );
                     })}
                 </Stack>
+            </Stack>
+
+            <Divider color="indigo.1" />
+
+            <Stack gap="xs">
+                <Group justify="space-between" wrap="nowrap">
+                    <Group gap={4} wrap="nowrap">
+                        <IconDatabase size={14} />
+                        <Text
+                            fz="xs"
+                            fw={700}
+                            className={classes.sectionHeader}
+                        >
+                            Session Schemas
+                        </Text>
+                    </Group>
+                    <Badge
+                        size="xs"
+                        color={selectedSchemas.length > 0 ? 'indigo' : 'gray'}
+                        variant="light"
+                    >
+                        {selectedSchemas.length > 0
+                            ? `${selectedSchemas.length} scoped`
+                            : 'All'}
+                    </Badge>
+                </Group>
+                <MultiSelect
+                    size="xs"
+                    aria-label="Session schemas"
+                    placeholder={
+                        availableSchemas.length > 0
+                            ? 'Select schemas for this session'
+                            : 'No schemas loaded'
+                    }
+                    data={availableSchemas}
+                    value={selectedSchemas}
+                    onChange={onChangeSelectedSchemas}
+                    searchable
+                    clearable
+                    nothingFoundMessage="No matching schema"
+                />
+                <Text fz="xs" c="dimmed">
+                    Scope which schemas this thread can query and cross-join.
+                </Text>
             </Stack>
 
             <Divider color="indigo.1" />

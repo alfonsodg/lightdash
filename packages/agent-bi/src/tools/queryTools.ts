@@ -383,6 +383,7 @@ export const createQueryTools = (deps: QueryToolDeps) => {
                 runSqlOutputSchema,
                 async () => {
                     const verdict = evaluateSqlGuard(input.sql, {
+                        allowedSchemas: options.allowedSchemas ?? null,
                         approvalToken: input.approvalToken ?? null,
                         dialect: deps.rawSql.dialect ?? null,
                         expectedApprovalToken:

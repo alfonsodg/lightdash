@@ -11,6 +11,7 @@ import type { CatalogVisibility } from '../catalog/catalogIndexer';
 import type { CapabilityPolicyContext } from '../policy/capabilityPolicy';
 
 export interface AgentToolRuntimeOptions {
+    allowedSchemas?: readonly string[] | null;
     signal?: AbortSignal | null;
     visibility?: CatalogVisibility | null;
 }

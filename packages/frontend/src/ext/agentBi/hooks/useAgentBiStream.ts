@@ -20,6 +20,7 @@ export type StreamInput = {
     };
     runtimeOverrides?: {
         activeTab?: string;
+        allowedSchemas?: string[];
         dateZoom?: string;
         filters?: Record<string, unknown>;
         parameters?: Record<string, unknown>;

@@ -120,6 +120,7 @@ const turnContextSchema = z.object({
     runtimeOverrides: z
         .object({
             activeTab: z.string().optional(),
+            allowedSchemas: z.array(z.string().trim().min(1)).optional(),
             dateZoom: z.string().optional(),
             filters: z.record(z.string(), z.unknown()).optional(),
             parameters: z.record(z.string(), z.unknown()).optional(),

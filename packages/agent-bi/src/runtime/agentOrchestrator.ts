@@ -203,13 +203,19 @@ export const runAgentTurn = async (
         };
         let result: unknown;
         try {
+            const allowedSchemas = input.runtimeOverrides?.allowedSchemas;
             result = await input.tools.execute(
                 tool,
                 toolInput,
                 input.principal,
-                catalogContext === undefined
+                catalogContext === undefined && !allowedSchemas?.length
                     ? undefined
-                    : { visibility: catalogContext.visibility },
+                    : {
+                          ...(allowedSchemas?.length ? { allowedSchemas } : {}),
+                          ...(catalogContext !== undefined
+                              ? { visibility: catalogContext.visibility }
+                              : {}),
+                      },
             );
         } catch (error) {
             const message =

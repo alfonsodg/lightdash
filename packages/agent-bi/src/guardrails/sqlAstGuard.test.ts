@@ -290,4 +290,21 @@ describe('evaluateSqlGuard fail-closed gates', () => {
             }
         }
     });
+
+    it('enforces allowedSchemas when session scopes schemas', () => {
+        const ok = evaluateSqlGuard(
+            'SELECT a.id FROM cosapup.downtime_reports a JOIN analitica.calendario c ON c.fecha = a.created_at::date',
+            baseOptions({ allowedSchemas: ['cosapup', 'analitica'] }),
+        );
+        expect(ok.allowed).toBe(true);
+
+        const denied = evaluateSqlGuard(
+            'SELECT a.id FROM cosapup.downtime_reports a JOIN metrado.takeoff_pipe_segment m ON m.id = a.project_id',
+            baseOptions({ allowedSchemas: ['cosapup', 'analitica'] }),
+        );
+        expect(denied.allowed).toBe(false);
+        if (!denied.allowed) {
+            expect(denied.reason).toBe('DISALLOWED_SCHEMA');
+        }
+    });
 });

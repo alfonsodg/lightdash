@@ -157,7 +157,8 @@ export type SqlGuardDenyReason =
     | 'NOT_READ_ONLY_SELECT'
     | 'FORBIDDEN_KEYWORD'
     | 'FORBIDDEN_FUNCTION'
-    | 'INVALID_ROW_LIMIT';
+    | 'INVALID_ROW_LIMIT'
+    | 'DISALLOWED_SCHEMA';
 
 export type SqlGuardVerdict =
     | { allowed: true; sanitizedSql: string; maxRows: number }
@@ -182,6 +183,7 @@ export interface SqlGuardOptions {
     requireApproval?: boolean;
     maxRows?: number;
     dialect?: string | null;
+    allowedSchemas?: readonly string[] | null;
 }
 
 const deny = (
@@ -433,6 +435,28 @@ export function evaluateSqlGuard(
                 'FORBIDDEN_FUNCTION',
                 'This statement calls a function the read-only guard rejects.',
             );
+        }
+    }
+    const allowedSchemaSet = new Set(
+        (options.allowedSchemas ?? [])
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0),
+    );
+    if (allowedSchemaSet.size > 0) {
+        const schemaRefPattern =
+            /\b(?:FROM|JOIN)\s+("?[A-Za-z_][A-Za-z0-9_$]*"?)\s*\.\s*("?[A-Za-z_][A-Za-z0-9_$]*"?)(?:\s*\.\s*("?[A-Za-z_][A-Za-z0-9_$]*"?))?/gi;
+        let match = schemaRefPattern.exec(code);
+        while (match) {
+            const firstIdent = (match[1] ?? '').replace(/^"|"$/g, '').toLowerCase();
+            const secondIdent = (match[2] ?? '').replace(/^"|"$/g, '').toLowerCase();
+            const schemaName = match[3] ? secondIdent : firstIdent;
+            if (!allowedSchemaSet.has(schemaName)) {
+                return deny(
+                    'DISALLOWED_SCHEMA',
+                    'This statement references a schema outside the session scope.',
+                );
+            }
+            match = schemaRefPattern.exec(code);
         }
     }
 

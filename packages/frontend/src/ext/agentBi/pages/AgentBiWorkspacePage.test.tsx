@@ -30,7 +30,10 @@ vi.mock('../components/AgentBiChartRenderer', () => ({
     ),
 }));
 
-vi.mock('../api', () => ({ decideApproval: vi.fn(async () => {}) }));
+vi.mock('../api', () => ({
+    decideApproval: vi.fn(async () => {}),
+    fetchProjectSchemas: vi.fn(async () => ['cosapup', 'analitica']),
+}));
 
 vi.mock('../hooks/useAgentBiStream', () => ({
     streamThreadTurn: vi.fn(async () => {}),
@@ -223,6 +226,7 @@ describe('AgentBiWorkspacePage', () => {
         );
 
         expect(screen.getByTestId('agent-bi-left-sidebar')).toBeInTheDocument();
+        expect(screen.getByText('Session Schemas')).toBeInTheDocument();
         expect(
             screen.getByRole('button', { name: 'Add tab' }),
         ).toBeInTheDocument();

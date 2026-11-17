@@ -71,6 +71,14 @@ export const fetchThreads = async (
     return body.results;
 };
 
+export const fetchProjectSchemas = async (
+    projectUuid: string,
+): Promise<string[]> => {
+    const response = await fetch(`${base}/projects/${projectUuid}/schemas`);
+    const body = await parseBody<ExtResponse<string[]>>(response);
+    return body.results;
+};
+
 export const createThread = async (
     projectUuid: string,
     title: string,

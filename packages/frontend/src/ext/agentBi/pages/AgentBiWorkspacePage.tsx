@@ -19,7 +19,7 @@ import { type Layout } from 'react-grid-layout';
 import { useParams } from 'react-router';
 import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
 import InlineErrorState from '../../../components/common/InlineErrorState';
-import { decideApproval } from '../api';
+import { decideApproval, fetchProjectSchemas } from '../api';
 import AgentBiApprovalCard from '../components/AgentBiApprovalCard';
 import AgentBiCanvasBoard, {
     type CanvasCard,
@@ -81,6 +81,26 @@ const loadSavedTabs = (projectUuid: string): CanvasTab[] => {
     return DEFAULT_TABS;
 };
 
+const loadSavedSchemas = (
+    projectUuid: string,
+    threadUuid: string | null,
+): string[] => {
+    if (!projectUuid || !threadUuid) return [];
+    try {
+        const raw = localStorage.getItem(
+            `agent-bi-schemas:${projectUuid}:${threadUuid}`,
+        );
+        if (!raw) return [];
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+            return parsed.filter((s): s is string => typeof s === 'string');
+        }
+    } catch {
+        // Ignore malformed localStorage state.
+    }
+    return [];
+};
+
 const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const { projectUuid = '' } = useParams();
     const {
@@ -110,6 +130,49 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
         () => loadSavedTabs(projectUuid)[0]?.id ?? 'tab-overview',
     );
     const activeThread = selectedThread ?? threads?.[0]?.threadUuid ?? null;
+    const [availableSchemas, setAvailableSchemas] = useState<string[]>([]);
+    const [selectedSchemas, setSelectedSchemas] = useState<string[]>(() =>
+        loadSavedSchemas(projectUuid, activeThread),
+    );
+
+    useEffect(() => {
+        if (!projectUuid) {
+            setAvailableSchemas([]);
+            return;
+        }
+        let cancelled = false;
+        void fetchProjectSchemas(projectUuid)
+            .then((schemas) => {
+                if (!cancelled) {
+                    setAvailableSchemas(schemas);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setAvailableSchemas([]);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [projectUuid]);
+
+    useEffect(() => {
+        setSelectedSchemas(loadSavedSchemas(projectUuid, activeThread));
+    }, [projectUuid, activeThread]);
+
+    const handleChangeSelectedSchemas = (schemas: string[]) => {
+        setSelectedSchemas(schemas);
+        if (!projectUuid || !activeThread) return;
+        try {
+            localStorage.setItem(
+                `agent-bi-schemas:${projectUuid}:${activeThread}`,
+                JSON.stringify(schemas),
+            );
+        } catch {
+            // Ignore storage quota errors.
+        }
+    };
 
     useEffect(() => {
         try {
@@ -317,11 +380,14 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                     slug: dashboardContext.chartSlug,
                 }
               : undefined;
+        const allowedSchemas =
+            selectedSchemas.length > 0 ? selectedSchemas : undefined;
         const context: TurnContext = pinnedContext
             ? {
                   pinnedContext,
                   runtimeOverrides: {
                       activeTab: dashboardContext?.activeTab,
+                      ...(allowedSchemas ? { allowedSchemas } : {}),
                       dateZoom: dashboardContext?.dateZoom,
                       filters: dashboardContext?.dashboardFilters
                           ? { ...dashboardContext.dashboardFilters }
@@ -329,7 +395,13 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                       parameters: dashboardContext?.parameters,
                   },
               }
-            : {};
+            : allowedSchemas
+              ? {
+                    runtimeOverrides: {
+                        allowedSchemas,
+                    },
+                }
+              : {};
         setDraft('');
         setStreaming(true);
         appendLine('user', text);
@@ -394,8 +466,10 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
         >
             <AgentBiLeftSidebar
                 activeTabId={activeTabId}
+                availableSchemas={availableSchemas}
                 collapsed={leftSidebarCollapsed}
                 hasDashboardContext={dashboardContext !== null}
+                onChangeSelectedSchemas={handleChangeSelectedSchemas}
                 onOpenLiveContext={() => setDrawerOpen(true)}
                 onOpenSkills={() => setSkillsOpen(true)}
                 onSelectTab={setActiveTabId}
@@ -403,6 +477,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                     setLeftSidebarCollapsed((prev) => !prev)
                 }
                 projectUuid={projectUuid}
+                selectedSchemas={selectedSchemas}
                 tabs={tabs}
             />
             <Stack gap="md" className={classes.canvas}>

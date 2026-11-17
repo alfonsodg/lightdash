@@ -10,6 +10,7 @@ export interface RuntimePinnedContext {
 
 export interface RuntimeOverrides {
     activeTab?: string;
+    allowedSchemas?: string[];
     dateZoom?: string;
     filters?: Record<string, unknown>;
     parameters?: Record<string, unknown>;
@@ -94,6 +95,14 @@ export const buildSystemPrompt = (context: PromptContext): string => {
     }
     const overrides = context.runtimeOverrides;
     if (overrides !== undefined && overrides !== null) {
+        if (
+            Array.isArray(overrides.allowedSchemas) &&
+            overrides.allowedSchemas.length > 0
+        ) {
+            lines.push(
+                `Session allowed schemas: ${overrides.allowedSchemas.join(', ')}. Use inspect_warehouse_columns and run_sql with schema-qualified names (schema.table) and JOIN across tables in these schemas; do not query schemas outside this list.`,
+            );
+        }
         const parts: string[] = [];
         if (overrides.dateZoom !== undefined) {
             parts.push(`dateZoom=${overrides.dateZoom}`);
@@ -106,6 +115,14 @@ export const buildSystemPrompt = (context: PromptContext): string => {
         }
         if (overrides.parameters !== undefined) {
             parts.push(`parameters=${JSON.stringify(overrides.parameters)}`);
+        }
+        if (
+            Array.isArray(overrides.allowedSchemas) &&
+            overrides.allowedSchemas.length > 0
+        ) {
+            parts.push(
+                `allowedSchemas=${JSON.stringify(overrides.allowedSchemas)}`,
+            );
         }
         if (parts.length > 0) {
             liveContext.push(`Live view overrides: ${parts.join(', ')}.`);

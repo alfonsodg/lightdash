@@ -27,6 +27,75 @@ agentBiRouter.use('/projects/:projectUuid/threads', createThreadsExtRouter());
 
 agentBiRouter.use('/projects/:projectUuid/skills', createSkillsExtRouter());
 
+agentBiRouter.get(
+    '/projects/:projectUuid/schemas',
+    allowApiKeyAuthentication,
+    isAuthenticated,
+    async (req, res, next) => {
+        try {
+            const { enabled } = await req.services.getFeatureFlagService().get({
+                user: req.user!,
+                featureFlagId: FeatureFlags.AgentBi,
+            });
+            if (!enabled) {
+                throw new NotFoundError('Not found');
+            }
+            const { projectUuid } = req.params as { projectUuid: string };
+            await req.services
+                .getAgentBiService()
+                .requireProjectViewer(req.account!, projectUuid);
+
+            const schemas = new Set<string>();
+            try {
+                const sqlResult = await req.services
+                    .getProjectService()
+                    .runSqlQuery(
+                        req.user!,
+                        projectUuid,
+                        "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast') AND schema_name NOT LIKE 'pg_temp_%' ORDER BY schema_name",
+                    );
+                for (const row of sqlResult.rows ?? []) {
+                    const name =
+                        typeof row.schema_name === 'string'
+                            ? row.schema_name.trim()
+                            : '';
+                    if (name.length > 0) {
+                        schemas.add(name);
+                    }
+                }
+            } catch {
+                // Fallback to catalog database/schema names if information_schema query fails.
+            }
+
+            if (schemas.size === 0) {
+                const catalog = await req.services
+                    .getProjectService()
+                    .getCatalog(req.user!, projectUuid);
+                for (const dbOrTable of Object.values(catalog)) {
+                    for (const table of Object.values(
+                        dbOrTable as Record<string, { schemaName?: unknown }>,
+                    )) {
+                        const schemaName = table?.schemaName;
+                        if (
+                            typeof schemaName === 'string' &&
+                            schemaName.trim().length > 0
+                        ) {
+                            schemas.add(schemaName.trim());
+                        }
+                    }
+                }
+            }
+
+            res.json({
+                status: 'ok',
+                results: Array.from(schemas).sort(),
+            });
+        } catch (error) {
+            next(error);
+        }
+    },
+);
+
 // Health gate for the isolated analytics-agent extension. Authentication
 // runs first so unauthenticated callers get 401 before flag evaluation.
 agentBiRouter.get(
