@@ -53,6 +53,10 @@ agentBiRouter.get(
                         req.user!,
                         projectUuid,
                         "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast') AND schema_name NOT LIKE 'pg_temp_%' ORDER BY schema_name",
+                        {
+                            kind: 'connection',
+                            warehouseConnectionUuid: null,
+                        },
                     );
                 for (const row of sqlResult.rows ?? []) {
                     const name =
