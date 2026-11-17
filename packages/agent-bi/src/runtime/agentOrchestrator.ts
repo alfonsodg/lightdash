@@ -81,7 +81,10 @@ export interface OrchestratorToolExecutor {
         toolName: string,
         input: unknown,
         principal: AgentPrincipal,
-        options?: { visibility: CatalogVisibility },
+        options?: {
+            allowedSchemas?: readonly string[];
+            visibility?: CatalogVisibility;
+        },
     ): Promise<unknown>;
 }
 
