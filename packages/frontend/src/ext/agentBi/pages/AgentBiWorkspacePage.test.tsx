@@ -213,6 +213,7 @@ describe('AgentBiWorkspacePage', () => {
     });
 
     it('renders 3 panels and collapses/expands both sidebars independently', () => {
+        localStorage.clear();
         render(
             <MantineBaseProvider env="test">
                 <MemoryRouter>
@@ -222,7 +223,9 @@ describe('AgentBiWorkspacePage', () => {
         );
 
         expect(screen.getByTestId('agent-bi-left-sidebar')).toBeInTheDocument();
-        expect(screen.getByText('BI Workspace Canvas')).toBeInTheDocument();
+        expect(
+            screen.getByRole('button', { name: 'Add tab' }),
+        ).toBeInTheDocument();
         expect(
             screen.getByTestId('agent-bi-right-sidebar'),
         ).toBeInTheDocument();
