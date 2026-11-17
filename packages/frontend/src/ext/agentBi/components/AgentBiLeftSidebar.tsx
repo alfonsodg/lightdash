@@ -71,8 +71,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="light"
                     color="indigo"
                     size="lg"
-                    aria-label="Expand workspace sidebar"
-                    title="Expand workspace sidebar"
+                    aria-label="Expandir espacios de trabajo"
+                    title="Expandir espacios de trabajo"
                     onClick={onToggleCollapse}
                 >
                     <IconLayoutSidebarLeftExpand size={18} />
@@ -81,8 +81,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="subtle"
                     color="indigo"
                     size="md"
-                    aria-label="Open project skills"
-                    title="Project skills"
+                    aria-label="Abrir habilidades"
+                    title="Habilidades"
                     onClick={onOpenSkills}
                 >
                     <IconBook2 size={16} />
@@ -91,8 +91,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="subtle"
                     color="teal"
                     size="md"
-                    aria-label="Open live context"
-                    title="Live context"
+                    aria-label="Abrir contexto vivo"
+                    title="Contexto vivo"
                     onClick={onOpenLiveContext}
                 >
                     <IconCompass size={16} />
@@ -118,15 +118,15 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         <IconLayoutDashboard size={16} />
                     </ThemeIcon>
                     <Text fw={700} fz="md" c="indigo.9">
-                        Workspaces
+                        Espacios de trabajo
                     </Text>
                 </Group>
                 <ActionIcon
                     variant="light"
                     color="indigo"
                     size="sm"
-                    aria-label="Collapse workspace sidebar"
-                    title="Collapse workspace sidebar"
+                    aria-label="Colapsar espacios de trabajo"
+                    title="Colapsar espacios de trabajo"
                     onClick={onToggleCollapse}
                 >
                     <IconLayoutSidebarLeftCollapse size={16} />
@@ -137,8 +137,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                 <TextInput
                     size="xs"
                     flex={1}
-                    aria-label="New thread title"
-                    placeholder="New workspace name"
+                    aria-label="Nombre del nuevo espacio"
+                    placeholder="Nombre del espacio"
                     value={threadTitle}
                     onChange={(event) =>
                         onChangeThreadTitle(event.currentTarget.value)
@@ -155,19 +155,19 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="filled"
                     onClick={onCreateThread}
                 >
-                    New thread
+                    Nuevo
                 </Button>
             </Group>
 
             <Stack gap={6} className={classes.threadList}>
                 {isLoadingThreads ? (
-                    <EmptyStateLoader title="Loading workspaces…" />
+                    <EmptyStateLoader title="Cargando espacios…" />
                 ) : threadsError !== null && threadsError !== undefined ? (
-                    <InlineErrorState message="Could not load workspaces." />
+                    <InlineErrorState message="No se pudieron cargar los espacios." />
                 ) : threads.length === 0 ? (
                     <Paper variant="dotted" p="xs">
                         <Text c="dimmed" fz="xs" ta="center">
-                            No workspaces yet.
+                            Sin espacios aún.
                         </Text>
                     </Paper>
                 ) : (
@@ -197,7 +197,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                                 }
                                 truncate
                             >
-                                {thread.title || 'Untitled'}
+                                {thread.title || 'Sin título'}
                             </Text>
                         </Paper>
                     ))
@@ -215,7 +215,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                             fw={700}
                             className={classes.sectionHeader}
                         >
-                            Session Schemas
+                            Esquemas de sesión
                         </Text>
                     </Group>
                     <Badge
@@ -224,24 +224,24 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         variant="light"
                     >
                         {selectedSchemas.length > 0
-                            ? `${selectedSchemas.length} scoped`
-                            : 'All'}
+                            ? `${selectedSchemas.length} activos`
+                            : 'Todos'}
                     </Badge>
                 </Group>
                 <MultiSelect
                     size="xs"
-                    aria-label="Session schemas"
+                    aria-label="Esquemas de sesión"
                     placeholder={
                         availableSchemas.length > 0
-                            ? 'Select schemas for this session'
-                            : 'No schemas loaded'
+                            ? 'Selecciona esquemas para esta sesión'
+                            : 'Sin esquemas cargados'
                     }
                     data={availableSchemas}
                     value={selectedSchemas}
                     onChange={onChangeSelectedSchemas}
                     searchable
                     clearable
-                    nothingFoundMessage="No matching schema"
+                    nothingFoundMessage="Sin coincidencias"
                 />
             </Stack>
 
@@ -255,7 +255,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     leftSection={<IconBook2 size={14} />}
                     onClick={onOpenSkills}
                 >
-                    Project skills
+                    Habilidades
                 </Button>
                 <Button
                     size="xs"
@@ -264,7 +264,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     leftSection={<IconCompass size={14} />}
                     onClick={onOpenLiveContext}
                 >
-                    Live context
+                    Contexto vivo
                 </Button>
             </Group>
         </Stack>

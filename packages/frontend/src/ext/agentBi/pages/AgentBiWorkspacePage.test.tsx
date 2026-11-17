@@ -49,7 +49,9 @@ describe('AgentBiWorkspacePage', () => {
             </MantineBaseProvider>,
         );
 
-        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+        expect(
+            screen.getByLabelText('Escribe tu consulta'),
+        ).toBeInTheDocument();
     });
 
     it('sends the current dashboard context with a question', async () => {
@@ -81,10 +83,10 @@ describe('AgentBiWorkspacePage', () => {
                 </MemoryRouter>
             </MantineBaseProvider>,
         );
-        fireEvent.change(screen.getByLabelText('Ask a question'), {
+        fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'What changed?' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
         await waitFor(() =>
             expect(streamThreadTurn).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -145,10 +147,10 @@ describe('AgentBiWorkspacePage', () => {
                 </MemoryRouter>
             </MantineBaseProvider>,
         );
-        fireEvent.change(screen.getByLabelText('Ask a question'), {
+        fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'Count orders by status.' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
         expect(
             await screen.findByTestId('chart-kind-echarts'),
@@ -189,13 +191,13 @@ describe('AgentBiWorkspacePage', () => {
             </MantineBaseProvider>
         );
         const { rerender } = render(view('revenue'));
-        fireEvent.change(screen.getByLabelText('Ask a question'), {
+        fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'Run it' },
         });
-        fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-        await screen.findByRole('button', { name: 'Approve' });
+        fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
+        await screen.findByRole('button', { name: 'Aprobar' });
         rerender(view('other-dashboard'));
-        fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Aprobar' }));
         await waitFor(() => expect(decideApproval).toHaveBeenCalled());
         await waitFor(() =>
             expect(streamThreadTurn).toHaveBeenLastCalledWith(
@@ -226,34 +228,46 @@ describe('AgentBiWorkspacePage', () => {
         );
 
         expect(screen.getByTestId('agent-bi-left-sidebar')).toBeInTheDocument();
-        expect(screen.getByText('Session Schemas')).toBeInTheDocument();
+        expect(screen.getByText('Esquemas de sesión')).toBeInTheDocument();
         expect(
-            screen.getByRole('button', { name: 'Add tab' }),
+            screen.getByRole('button', { name: 'Agregar pestaña' }),
         ).toBeInTheDocument();
         expect(
             screen.getByTestId('agent-bi-right-sidebar'),
         ).toBeInTheDocument();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Collapse workspace sidebar' }),
+            screen.getByRole('button', {
+                name: 'Colapsar espacios de trabajo',
+            }),
         );
         expect(
-            screen.getByRole('button', { name: 'Expand workspace sidebar' }),
+            screen.getByRole('button', {
+                name: 'Expandir espacios de trabajo',
+            }),
         ).toBeInTheDocument();
-        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+        expect(
+            screen.getByLabelText('Escribe tu consulta'),
+        ).toBeInTheDocument();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Collapse sidebar' }),
+            screen.getByRole('button', { name: 'Colapsar asistente' }),
         );
         expect(
-            screen.getByRole('button', { name: 'Expand sidebar' }),
+            screen.getByRole('button', { name: 'Expandir asistente' }),
         ).toBeInTheDocument();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Expand workspace sidebar' }),
+            screen.getByRole('button', {
+                name: 'Expandir espacios de trabajo',
+            }),
         );
-        expect(screen.getByText('Workspaces')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
-        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+        expect(screen.getByText('Espacios de trabajo')).toBeInTheDocument();
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Expandir asistente' }),
+        );
+        expect(
+            screen.getByLabelText('Escribe tu consulta'),
+        ).toBeInTheDocument();
     });
 });

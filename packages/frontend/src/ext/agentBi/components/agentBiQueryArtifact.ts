@@ -113,15 +113,15 @@ export const deriveChartTitle = (preview: AgentBiQueryPreview): string => {
         (id) => preview.columns[id]?.label ?? id,
     );
     if (metricLabels.length > 0 && dimLabels.length > 0) {
-        return `${metricLabels.join(', ')} by ${dimLabels.join(', ')}`;
+        return `${metricLabels.join(', ')} por ${dimLabels.join(', ')}`;
     }
     if (metricLabels.length > 0) {
         return metricLabels.join(', ');
     }
     if (dimLabels.length > 0) {
-        return `${dimLabels.join(', ')} breakdown`;
+        return `Desglose de ${dimLabels.join(', ')}`;
     }
-    return 'Query result';
+    return 'Resultado de consulta';
 };
 
 const isTemporalDimension = (type: string | null | undefined): boolean => {

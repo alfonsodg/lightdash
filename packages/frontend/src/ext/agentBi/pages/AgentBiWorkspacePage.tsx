@@ -62,7 +62,7 @@ type Props = {
 };
 
 const DEFAULT_TABS: CanvasTab[] = [
-    { cards: [], id: 'tab-overview', name: 'Overview' },
+    { cards: [], id: 'tab-overview', name: 'Resumen' },
 ];
 
 const loadSavedTabs = (projectUuid: string): CanvasTab[] => {
@@ -358,7 +358,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                 pinCardToTab({ preview });
             }
         } else if (event.type === 'error') {
-            appendLine('error', 'The turn failed.');
+            appendLine('error', 'No se pudo completar la consulta.');
         }
     };
 
@@ -511,8 +511,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         variant="light"
                         color="indigo"
                         size="lg"
-                        aria-label="Expand sidebar"
-                        title="Expand sidebar"
+                        aria-label="Expandir asistente"
+                        title="Expandir asistente"
                         onClick={() => setSidebarCollapsed(false)}
                     >
                         <IconLayoutSidebarRightExpand size={18} />
@@ -534,15 +534,15 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                     <IconSparkles size={16} />
                                 </ThemeIcon>
                                 <Text fw={700} fz="lg" c="indigo.9">
-                                    Ask AI
+                                    Asistente BI
                                 </Text>
                             </Group>
                             <ActionIcon
                                 variant="light"
                                 color="indigo"
                                 size="sm"
-                                aria-label="Collapse sidebar"
-                                title="Collapse sidebar"
+                                aria-label="Colapsar asistente"
+                                title="Colapsar asistente"
                                 onClick={() => setSidebarCollapsed(true)}
                             >
                                 <IconLayoutSidebarRightCollapse size={16} />
@@ -578,7 +578,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                                     })
                                                 }
                                             >
-                                                Pin to tab
+                                                Fijar en pestaña
                                             </Button>
                                         </Group>
                                     </Paper>
@@ -606,7 +606,11 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                                       : 'blue.7'
                                             }
                                         >
-                                            {line.role}
+                                            {line.role === 'user'
+                                                ? 'Usuario'
+                                                : line.role === 'error'
+                                                  ? 'Error'
+                                                  : 'Asistente'}
                                         </Text>
                                         <Text fz="sm">{line.text}</Text>
                                     </Paper>
@@ -625,8 +629,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         </Stack>
                         <Group gap="sm" className={classes.promptBar}>
                             <TextInput
-                                aria-label="Ask a question"
-                                placeholder="Ask a question…"
+                                aria-label="Escribe tu consulta"
+                                placeholder="Escribe tu consulta…"
                                 value={draft}
                                 flex={1}
                                 onChange={(event) =>
@@ -644,7 +648,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 onClick={() => void handleSend()}
                                 loading={streaming}
                             >
-                                Send
+                                Enviar
                             </Button>
                         </Group>
                     </>

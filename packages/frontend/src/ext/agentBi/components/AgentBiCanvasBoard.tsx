@@ -120,7 +120,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                                             component="span"
                                             size="xs"
                                             variant="subtle"
-                                            aria-label={`Remove tab ${tab.name}`}
+                                            aria-label={`Eliminar pestaña ${tab.name}`}
                                             onClick={(event) => {
                                                 event.stopPropagation();
                                                 onRemoveTab(tab.id);
@@ -139,8 +139,8 @@ const AgentBiCanvasBoard: FC<Props> = ({
                 <Group gap="xs" wrap="nowrap">
                     <TextInput
                         size="xs"
-                        aria-label="New tab name"
-                        placeholder="New tab name"
+                        aria-label="Nombre de pestaña"
+                        placeholder="Nombre de pestaña"
                         value={newTabName}
                         onChange={(event) =>
                             setNewTabName(event.currentTarget.value)
@@ -156,7 +156,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                         leftSection={<IconPlus size={14} />}
                         onClick={handleCreateTab}
                     >
-                        Add tab
+                        Agregar pestaña
                     </Button>
                 </Group>
             </Group>
@@ -170,12 +170,13 @@ const AgentBiCanvasBoard: FC<Props> = ({
                 >
                     <Stack gap="xs" align="center">
                         <Text fw={700} c="indigo.9">
-                            BI Workspace Canvas
+                            Lienzo de análisis BI
                         </Text>
                         <Text size="sm" c="dimmed" ta="center">
-                            Ask a question in the right panel. Query charts and
-                            tables appear here automatically and can be dragged,
-                            resized, and organized across tabs.
+                            Escribe una consulta en el panel derecho. Los
+                            gráficos y tablas aparecerán aquí automáticamente y
+                            podrás arrastrarlos, redimensionarlos y organizarlos
+                            por pestañas.
                         </Text>
                     </Stack>
                 </Paper>
@@ -214,13 +215,14 @@ const AgentBiCanvasBoard: FC<Props> = ({
                                     >
                                         <IconGripVertical size={15} />
                                         <Text size="xs" c="dimmed">
-                                            Drag to prioritize
+                                            Arrastrar para priorizar
                                         </Text>
                                     </Group>
                                     <ActionIcon
                                         size="xs"
                                         variant="subtle"
-                                        aria-label="Remove card"
+                                        aria-label="Quitar tarjeta"
+                                        title="Quitar tarjeta"
                                         onClick={() =>
                                             onRemoveCard(activeTab.id, card.id)
                                         }

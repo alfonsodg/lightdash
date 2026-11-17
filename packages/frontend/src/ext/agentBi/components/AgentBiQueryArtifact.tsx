@@ -34,12 +34,12 @@ type Props = {
 const VIEW_MODE_OPTIONS: Array<{ label: string; value: AgentBiChartViewMode }> =
     [
         { label: 'Auto', value: 'auto' },
-        { label: 'Bar', value: 'bar' },
+        { label: 'Barras', value: 'bar' },
         { label: 'Horiz.', value: 'horizontal_bar' },
-        { label: 'Line', value: 'line' },
-        { label: 'Area', value: 'area' },
-        { label: 'Pie', value: 'pie' },
-        { label: 'Table', value: 'table' },
+        { label: 'Líneas', value: 'line' },
+        { label: 'Área', value: 'area' },
+        { label: 'Circular', value: 'pie' },
+        { label: 'Tabla', value: 'table' },
     ];
 
 const AgentBiQueryArtifact: FC<Props> = ({
@@ -70,7 +70,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
     const subtitleParts = [
         metadata.subtitle?.trim(),
         metadata.denominator?.trim()
-            ? `Denominator: ${metadata.denominator.trim()}`
+            ? `Denominador: ${metadata.denominator.trim()}`
             : undefined,
     ].filter((part): part is string => Boolean(part && part.length > 0));
 
@@ -81,7 +81,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                     <SegmentedControl
                         size="xs"
                         color="indigo"
-                        aria-label="Chart view mode"
+                        aria-label="Modo de visualización"
                         value={mode}
                         onChange={(next) => {
                             const typed = next as AgentBiChartViewMode;
@@ -100,8 +100,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 variant="light"
                                 color="indigo"
                                 size="sm"
-                                aria-label="Edit chart labels"
-                                title="Edit title, subtitle, denominator, and axis labels"
+                                aria-label="Editar rótulos del gráfico"
+                                title="Editar título, subtítulo, denominador y ejes"
                             >
                                 <IconPencil size={15} />
                             </ActionIcon>
@@ -110,7 +110,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                             <Stack gap="xs">
                                 <TextInput
                                     size="xs"
-                                    label="Title"
+                                    label="Título"
                                     placeholder={deriveChartTitle(preview)}
                                     value={metadata.title ?? ''}
                                     onChange={(event) =>
@@ -121,8 +121,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Subtitle"
-                                    placeholder="Context or time window"
+                                    label="Subtítulo"
+                                    placeholder="Contexto o período"
                                     value={metadata.subtitle ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -132,8 +132,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Denominator"
-                                    placeholder="e.g. All 117 reports in bronze"
+                                    label="Denominador"
+                                    placeholder="Ej. Total de registros en bronze"
                                     value={metadata.denominator ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -144,7 +144,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="X-axis label"
+                                    label="Etiqueta eje X"
                                     value={metadata.xAxisLabel ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -155,7 +155,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Y-axis label"
+                                    label="Etiqueta eje Y"
                                     value={metadata.yAxisLabel ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -166,7 +166,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <Switch
                                     size="xs"
-                                    label="Show data value labels"
+                                    label="Mostrar valores en el gráfico"
                                     checked={metadata.showDataLabels ?? true}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -183,8 +183,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                             variant="light"
                             color="teal"
                             size="sm"
-                            aria-label="Pin to tab"
-                            title="Pin to active dashboard tab"
+                            aria-label="Fijar en pestaña"
+                            title="Fijar en la pestaña activa"
                             onClick={() =>
                                 onPinToTab({
                                     metadata: {

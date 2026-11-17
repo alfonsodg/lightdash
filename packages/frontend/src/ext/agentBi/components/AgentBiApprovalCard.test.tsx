@@ -28,7 +28,7 @@ describe('AgentBiApprovalCard', () => {
                 tool="run_sql"
             />,
         );
-        fireEvent.click(screen.getByRole('button', { name: /approve/i }));
+        fireEvent.click(screen.getByRole('button', { name: /aprobar/i }));
         expect(onDecide).toHaveBeenCalledWith('approved');
     });
 
@@ -42,7 +42,7 @@ describe('AgentBiApprovalCard', () => {
                 tool="run_sql"
             />,
         );
-        fireEvent.click(screen.getByRole('button', { name: /reject/i }));
+        fireEvent.click(screen.getByRole('button', { name: /rechazar/i }));
         expect(onDecide).toHaveBeenCalledWith('rejected');
     });
 

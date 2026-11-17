@@ -18,29 +18,29 @@ const AgentBiApprovalCard = ({
 }: Props): ReactElement => {
     const summary =
         input === undefined || input === null
-            ? 'No input details.'
+            ? 'Sin detalles de entrada.'
             : JSON.stringify(input, null, 2);
     return (
         <Card
             p="md"
-            aria-label={`Approval for ${tool}`}
+            aria-label={`Aprobación para ${tool}`}
             data-approval-uuid={approvalUuid}
         >
             <Stack gap="sm">
-                <Text fw={600}>Approval required</Text>
+                <Text fw={600}>Aprobación requerida</Text>
                 <Text fz="sm" c="dimmed">
-                    The assistant wants to run <Code>{tool}</Code>.
+                    El asistente solicita ejecutar <Code>{tool}</Code>.
                 </Text>
                 <Code block>{summary}</Code>
                 <Group gap="sm">
-                    <Button onClick={() => onDecide('approved')}>
-                        Approve
+                    <Button color="indigo" onClick={() => onDecide('approved')}>
+                        Aprobar
                     </Button>
                     <Button
                         variant="default"
                         onClick={() => onDecide('rejected')}
                     >
-                        Reject
+                        Rechazar
                     </Button>
                 </Group>
             </Stack>
