@@ -279,10 +279,16 @@ export const createThreadsExtRouter = (): Router => {
                 userText?: unknown;
             };
             const context = turnContextSchema.safeParse(req.body);
+            const hasViewOverrides =
+                context.success &&
+                context.data.runtimeOverrides != null &&
+                (context.data.runtimeOverrides.activeTab !== undefined ||
+                    context.data.runtimeOverrides.dateZoom !== undefined ||
+                    context.data.runtimeOverrides.filters !== undefined ||
+                    context.data.runtimeOverrides.parameters !== undefined);
             if (
                 !context.success ||
-                (context.data.runtimeOverrides != null &&
-                    context.data.pinnedContext == null)
+                (hasViewOverrides && context.data.pinnedContext == null)
             ) {
                 throw new ParameterError('Invalid live view context.');
             }
