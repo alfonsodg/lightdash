@@ -175,7 +175,7 @@ const queryPreviewFor = (
         const inferredDimensions: string[] = [];
         const inferredMetrics: string[] = [];
         for (const [fieldId, meta] of Object.entries(columns)) {
-            if (meta.type === 'number') {
+            if ((meta.type ?? '').toLowerCase() === 'number') {
                 inferredMetrics.push(fieldId);
             } else {
                 inferredDimensions.push(fieldId);
@@ -224,10 +224,10 @@ export const toArtifact = (
         'dashboardUuid',
         'queryUuid',
     ]);
-    if (slug === undefined && uuid === undefined) {
+    const preview = queryPreviewFor(tool, toolInput, record);
+    if (slug === undefined && uuid === undefined && preview === undefined) {
         return null;
     }
-    const preview = queryPreviewFor(tool, toolInput, record);
     return {
         kind: artifactKindFor(tool),
         ...(preview !== undefined ? { preview } : {}),

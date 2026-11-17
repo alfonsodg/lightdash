@@ -558,9 +558,10 @@ describe('runAgentTurn', () => {
             tools: {
                 execute: async () => ({
                     columns: {
-                        front_name: { label: 'Front', type: 'string' },
-                        total_minutes: { label: 'Total Minutes', type: 'number' },
+                        front_name: { label: 'Front', type: 'STRING' },
+                        total_minutes: { label: 'Total Minutes', type: 'NUMBER' },
                     },
+                    queryUuid: 'sql-1',
                     rows: [{ front_name: 'Frente A', total_minutes: 120 }],
                 }),
             },
