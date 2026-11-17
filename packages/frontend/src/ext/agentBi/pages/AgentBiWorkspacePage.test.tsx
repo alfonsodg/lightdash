@@ -252,7 +252,7 @@ describe('AgentBiWorkspacePage', () => {
         fireEvent.click(
             screen.getByRole('button', { name: 'Expand workspace sidebar' }),
         );
-        expect(screen.getByText('Workspace')).toBeInTheDocument();
+        expect(screen.getByText('Workspaces')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
         expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
     });

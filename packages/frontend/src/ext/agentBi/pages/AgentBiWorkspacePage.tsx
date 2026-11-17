@@ -17,8 +17,6 @@ import {
 import { useEffect, useState, type FC } from 'react';
 import { type Layout } from 'react-grid-layout';
 import { useParams } from 'react-router';
-import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
-import InlineErrorState from '../../../components/common/InlineErrorState';
 import { decideApproval, fetchProjectSchemas } from '../api';
 import AgentBiApprovalCard from '../components/AgentBiApprovalCard';
 import AgentBiCanvasBoard, {
@@ -465,20 +463,26 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             wrap="nowrap"
         >
             <AgentBiLeftSidebar
-                activeTabId={activeTabId}
+                activeThread={activeThread}
                 availableSchemas={availableSchemas}
                 collapsed={leftSidebarCollapsed}
-                hasDashboardContext={dashboardContext !== null}
+                isLoadingThreads={isLoading}
                 onChangeSelectedSchemas={handleChangeSelectedSchemas}
+                onChangeThreadTitle={setTitle}
+                onCreateThread={() => void handleCreate()}
                 onOpenLiveContext={() => setDrawerOpen(true)}
                 onOpenSkills={() => setSkillsOpen(true)}
-                onSelectTab={setActiveTabId}
+                onSelectThread={(threadUuid) => {
+                    setSelectedThread(threadUuid);
+                    setLines([]);
+                }}
                 onToggleCollapse={() =>
                     setLeftSidebarCollapsed((prev) => !prev)
                 }
-                projectUuid={projectUuid}
                 selectedSchemas={selectedSchemas}
-                tabs={tabs}
+                threads={threads ?? []}
+                threadsError={error}
+                threadTitle={title}
             />
             <Stack gap="md" className={classes.canvas}>
                 <AgentBiCanvasBoard
@@ -544,70 +548,6 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 <IconLayoutSidebarRightCollapse size={16} />
                             </ActionIcon>
                         </Group>
-                        <Stack gap="xs">
-                            <Group gap="xs" wrap="nowrap">
-                                <TextInput
-                                    size="xs"
-                                    flex={1}
-                                    aria-label="New thread title"
-                                    placeholder="New thread title"
-                                    value={title}
-                                    onChange={(event) =>
-                                        setTitle(event.currentTarget.value)
-                                    }
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
-                                            void handleCreate();
-                                        }
-                                    }}
-                                />
-                                <Button
-                                    size="xs"
-                                    color="indigo"
-                                    variant="filled"
-                                    onClick={() => void handleCreate()}
-                                >
-                                    New thread
-                                </Button>
-                            </Group>
-                            <Stack gap={4} className={classes.threadList}>
-                                {isLoading ? (
-                                    <EmptyStateLoader title="Loading threads…" />
-                                ) : error !== null && error !== undefined ? (
-                                    <InlineErrorState message="Could not load threads." />
-                                ) : (threads ?? []).length === 0 ? (
-                                    <Paper variant="dotted" p="xs">
-                                        <Text c="dimmed" fz="xs" ta="center">
-                                            No threads yet.
-                                        </Text>
-                                    </Paper>
-                                ) : (
-                                    (threads ?? []).map((thread) => (
-                                        <Paper
-                                            key={thread.threadUuid}
-                                            p="xs"
-                                            withBorder
-                                            onClick={() => {
-                                                setSelectedThread(
-                                                    thread.threadUuid,
-                                                );
-                                                setLines([]);
-                                            }}
-                                            className={
-                                                thread.threadUuid ===
-                                                activeThread
-                                                    ? `${classes.threadItemActive} is-active`
-                                                    : classes.threadItem
-                                            }
-                                        >
-                                            <Text fw={500} fz="xs" truncate>
-                                                {thread.title || 'Untitled'}
-                                            </Text>
-                                        </Paper>
-                                    ))
-                                )}
-                            </Stack>
-                        </Stack>
                         <Stack gap="sm" className={classes.messagesPane}>
                             {persisted.length > 0 ? (
                                 <Stack gap="xs">
@@ -683,7 +623,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 />
                             ) : null}
                         </Stack>
-                        <Group gap="sm">
+                        <Group gap="sm" className={classes.promptBar}>
                             <TextInput
                                 aria-label="Ask a question"
                                 placeholder="Ask a question…"

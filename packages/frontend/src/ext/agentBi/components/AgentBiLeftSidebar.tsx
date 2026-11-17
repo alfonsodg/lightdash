@@ -8,6 +8,7 @@ import {
     Paper,
     Stack,
     Text,
+    TextInput,
     ThemeIcon,
 } from '@mantine/core';
 import {
@@ -17,43 +18,48 @@ import {
     IconLayoutDashboard,
     IconLayoutSidebarLeftCollapse,
     IconLayoutSidebarLeftExpand,
-    IconTable,
 } from '@tabler/icons-react';
 import { type FC } from 'react';
-import { type CanvasTab } from './AgentBiCanvasBoard';
+import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
+import InlineErrorState from '../../../components/common/InlineErrorState';
+import { type AgentBiThread } from '../api';
 import classes from './AgentBiLeftSidebar.module.css';
 
 type Props = {
-    activeTabId: string;
+    activeThread: string | null;
     availableSchemas: string[];
     collapsed: boolean;
-    hasDashboardContext: boolean;
+    isLoadingThreads: boolean;
     onChangeSelectedSchemas: (schemas: string[]) => void;
+    onChangeThreadTitle: (title: string) => void;
+    onCreateThread: () => void;
     onOpenLiveContext: () => void;
     onOpenSkills: () => void;
-    onSelectTab: (tabId: string) => void;
+    onSelectThread: (threadUuid: string) => void;
     onToggleCollapse: () => void;
-    projectUuid: string;
     selectedSchemas: string[];
-    tabs: CanvasTab[];
+    threads: AgentBiThread[];
+    threadsError: unknown;
+    threadTitle: string;
 };
 
 const AgentBiLeftSidebar: FC<Props> = ({
-    activeTabId,
+    activeThread,
     availableSchemas,
     collapsed,
-    hasDashboardContext,
+    isLoadingThreads,
     onChangeSelectedSchemas,
+    onChangeThreadTitle,
+    onCreateThread,
     onOpenLiveContext,
     onOpenSkills,
-    onSelectTab,
+    onSelectThread,
     onToggleCollapse,
-    projectUuid,
     selectedSchemas,
-    tabs,
+    threads,
+    threadsError,
+    threadTitle,
 }) => {
-    const totalCards = tabs.reduce((sum, tab) => sum + tab.cards.length, 0);
-
     if (collapsed) {
         return (
             <Stack
@@ -97,7 +103,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
 
     return (
         <Stack
-            gap="md"
+            gap="sm"
             className={classes.leftSidebar}
             data-testid="agent-bi-left-sidebar"
         >
@@ -112,7 +118,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         <IconLayoutDashboard size={16} />
                     </ThemeIcon>
                     <Text fw={700} fz="md" c="indigo.9">
-                        Workspace
+                        Workspaces
                     </Text>
                 </Group>
                 <ActionIcon
@@ -127,50 +133,75 @@ const AgentBiLeftSidebar: FC<Props> = ({
                 </ActionIcon>
             </Group>
 
-            <Paper withBorder p="xs" radius="md" className={classes.infoBanner}>
-                <Group justify="space-between" wrap="nowrap">
-                    <Text fz="xs" fw={600} c="indigo.9" truncate>
-                        {projectUuid
-                            ? `Project ${projectUuid.slice(0, 8)}`
-                            : 'BI Studio'}
-                    </Text>
-                    <Badge size="xs" color="cyan" variant="filled">
-                        {totalCards} charts
-                    </Badge>
-                </Group>
-            </Paper>
+            <Group gap="xs" wrap="nowrap">
+                <TextInput
+                    size="xs"
+                    flex={1}
+                    aria-label="New thread title"
+                    placeholder="New workspace name"
+                    value={threadTitle}
+                    onChange={(event) =>
+                        onChangeThreadTitle(event.currentTarget.value)
+                    }
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                            onCreateThread();
+                        }
+                    }}
+                />
+                <Button
+                    size="xs"
+                    color="indigo"
+                    variant="filled"
+                    onClick={onCreateThread}
+                >
+                    New thread
+                </Button>
+            </Group>
 
-            <Stack gap="xs">
-                <Text fz="xs" fw={700} className={classes.sectionHeader}>
-                    Canvas Tabs
-                </Text>
-                <Stack gap={6}>
-                    {tabs.map((tab) => {
-                        const isActive = tab.id === activeTabId;
-                        return (
-                            <Button
-                                key={tab.id}
-                                size="xs"
-                                variant={isActive ? 'light' : 'subtle'}
-                                color={isActive ? 'indigo' : 'gray'}
-                                leftSection={<IconTable size={14} />}
-                                rightSection={
-                                    <Badge
-                                        size="xs"
-                                        color={isActive ? 'indigo' : 'gray'}
-                                        variant={isActive ? 'filled' : 'light'}
-                                    >
-                                        {tab.cards.length}
-                                    </Badge>
+            <Stack gap={6} className={classes.threadList}>
+                {isLoadingThreads ? (
+                    <EmptyStateLoader title="Loading workspaces…" />
+                ) : threadsError !== null && threadsError !== undefined ? (
+                    <InlineErrorState message="Could not load workspaces." />
+                ) : threads.length === 0 ? (
+                    <Paper variant="dotted" p="xs">
+                        <Text c="dimmed" fz="xs" ta="center">
+                            No workspaces yet.
+                        </Text>
+                    </Paper>
+                ) : (
+                    threads.map((thread) => (
+                        <Paper
+                            key={thread.threadUuid}
+                            p="xs"
+                            withBorder
+                            onClick={() => onSelectThread(thread.threadUuid)}
+                            className={
+                                thread.threadUuid === activeThread
+                                    ? `${classes.threadItemActive} is-active`
+                                    : classes.threadItem
+                            }
+                        >
+                            <Text
+                                fw={
+                                    thread.threadUuid === activeThread
+                                        ? 600
+                                        : 500
                                 }
-                                className={classes.tabNavButton}
-                                onClick={() => onSelectTab(tab.id)}
+                                fz="xs"
+                                c={
+                                    thread.threadUuid === activeThread
+                                        ? 'indigo.9'
+                                        : undefined
+                                }
+                                truncate
                             >
-                                {tab.name}
-                            </Button>
-                        );
-                    })}
-                </Stack>
+                                {thread.title || 'Untitled'}
+                            </Text>
+                        </Paper>
+                    ))
+                )}
             </Stack>
 
             <Divider color="indigo.1" />
@@ -212,17 +243,11 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     clearable
                     nothingFoundMessage="No matching schema"
                 />
-                <Text fz="xs" c="dimmed">
-                    Scope which schemas this thread can query and cross-join.
-                </Text>
             </Stack>
 
             <Divider color="indigo.1" />
 
-            <Stack gap="xs">
-                <Text fz="xs" fw={700} className={classes.sectionHeader}>
-                    Context & Skills
-                </Text>
+            <Group gap="xs" grow>
                 <Button
                     size="xs"
                     variant="light"
@@ -237,18 +262,11 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="light"
                     color="teal"
                     leftSection={<IconCompass size={14} />}
-                    rightSection={
-                        hasDashboardContext ? (
-                            <Badge size="xs" color="teal" variant="filled">
-                                Active
-                            </Badge>
-                        ) : undefined
-                    }
                     onClick={onOpenLiveContext}
                 >
                     Live context
                 </Button>
-            </Stack>
+            </Group>
         </Stack>
     );
 };
