@@ -537,4 +537,44 @@ describe('runAgentTurn', () => {
             'tool',
         ]);
     });
+
+    it('infers dimensions and metrics in chart_artifact for approved run_sql results', async () => {
+        const { deps } = baseDeps([textResult('Done.')]);
+        const artifacts: Array<{ preview?: { dimensions: string[]; metrics: string[] } }> = [];
+        await runAgentTurn({
+            ...deps,
+            onEvent: (event) => {
+                if ((event as { type: string }).type === 'chart_artifact') {
+                    artifacts.push(
+                        event as {
+                            preview?: {
+                                dimensions: string[];
+                                metrics: string[];
+                            };
+                        },
+                    );
+                }
+            },
+            tools: {
+                execute: async () => ({
+                    columns: {
+                        front_name: { label: 'Front', type: 'string' },
+                        total_minutes: { label: 'Total Minutes', type: 'number' },
+                    },
+                    rows: [{ front_name: 'Frente A', total_minutes: 120 }],
+                }),
+            },
+            resumeApproved: {
+                approvalUuid: 'appr-sql-1',
+                input: {
+                    sql: 'SELECT f.name AS front_name, SUM(r.total_minutes) AS total_minutes FROM cosapup.downtime_reports r JOIN cosapup.fronts f ON f.front_id = r.front_id GROUP BY 1',
+                },
+                tool: 'run_sql',
+            },
+            userText: 'Downtime by front.',
+        });
+        expect(artifacts).toHaveLength(1);
+        expect(artifacts[0]?.preview?.dimensions).toEqual(['front_name']);
+        expect(artifacts[0]?.preview?.metrics).toEqual(['total_minutes']);
+    });
 });

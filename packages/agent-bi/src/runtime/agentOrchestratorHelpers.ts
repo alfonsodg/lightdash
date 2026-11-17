@@ -167,10 +167,27 @@ const queryPreviewFor = (
         ];
     });
     const inputRecord = asRecord(toolInput) ?? {};
+    const explicitDimensions = stringArray(inputRecord, 'dimensions');
+    const explicitMetrics = stringArray(inputRecord, 'metrics');
+    let dimensions = explicitDimensions;
+    let metrics = explicitMetrics;
+    if (explicitDimensions.length === 0 && explicitMetrics.length === 0) {
+        const inferredDimensions: string[] = [];
+        const inferredMetrics: string[] = [];
+        for (const [fieldId, meta] of Object.entries(columns)) {
+            if (meta.type === 'number') {
+                inferredMetrics.push(fieldId);
+            } else {
+                inferredDimensions.push(fieldId);
+            }
+        }
+        dimensions = inferredDimensions;
+        metrics = inferredMetrics;
+    }
     return {
         columns,
-        dimensions: stringArray(inputRecord, 'dimensions'),
-        metrics: stringArray(inputRecord, 'metrics'),
+        dimensions,
+        metrics,
         rows,
     };
 };
