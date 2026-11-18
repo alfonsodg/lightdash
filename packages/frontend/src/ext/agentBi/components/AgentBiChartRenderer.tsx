@@ -59,12 +59,37 @@ const rowCell = (row: ResultRow, columnId: string): string => {
     return cellText(cell);
 };
 
+const sanitizeEchartsOption = (
+    option: Extract<RenderedChart, { kind: 'echarts' }>['option'],
+): Extract<RenderedChart, { kind: 'echarts' }>['option'] => {
+    const legend = option.legend;
+    if (
+        legend &&
+        !Array.isArray(legend) &&
+        'selected' in legend &&
+        legend.selected === undefined
+    ) {
+        return {
+            ...option,
+            legend: {
+                ...legend,
+                selected: {},
+            },
+        };
+    }
+    return option;
+};
+
 const EchartsBody = ({
     output,
 }: {
     output: Extract<RenderedChart, { kind: 'echarts' }>;
 }): ReactElement => (
-    <EChartsReact option={output.option} className={classes.chart} />
+    <EChartsReact
+        option={sanitizeEchartsOption(output.option)}
+        notMerge
+        className={classes.chart}
+    />
 );
 
 const TableBody = ({
