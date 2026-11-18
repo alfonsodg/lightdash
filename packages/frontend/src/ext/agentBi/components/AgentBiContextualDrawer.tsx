@@ -22,19 +22,25 @@ type Props = {
     opened: boolean;
 };
 
-const rowsOf = (context: AgentBiDrawerContext): Array<[string, string]> => {
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
+import type { AgentBiMessageKey } from '../i18n/locales/es';
+
+const rowsOf = (
+    context: AgentBiDrawerContext,
+    t: (key: AgentBiMessageKey) => string,
+): Array<[string, string]> => {
     const rows: Array<[string, string]> = [];
     if (context.chartSlug !== undefined) {
-        rows.push(['Chart', context.chartSlug]);
+        rows.push([t('drawer.chart'), context.chartSlug]);
     }
     if (context.dashboardSlug !== undefined) {
-        rows.push(['Dashboard', context.dashboardSlug]);
+        rows.push([t('drawer.dashboard'), context.dashboardSlug]);
     }
     if (context.activeTab !== undefined) {
-        rows.push(['Active tab', context.activeTab]);
+        rows.push([t('drawer.activeTab'), context.activeTab]);
     }
     if (context.dateZoom !== undefined) {
-        rows.push(['Date zoom', context.dateZoom]);
+        rows.push([t('drawer.dateZoom'), context.dateZoom]);
     }
     const filters = context.dashboardFilters;
     for (const filter of filters
@@ -45,24 +51,25 @@ const rowsOf = (context: AgentBiDrawerContext): Array<[string, string]> => {
           ]
         : []) {
         rows.push([
-            `Filter ${filter.target.fieldId}`,
+            `${t('drawer.filterPrefix')} ${filter.target.fieldId}`,
             [filter.operator, ...(filter.values ?? []).map(String)].join(' '),
         ]);
     }
     for (const [key, value] of Object.entries(context.parameters ?? {})) {
-        rows.push([`Parameter ${key}`, String(value)]);
+        rows.push([`${t('drawer.parameterPrefix')} ${key}`, String(value)]);
     }
     return rows;
 };
 
 const AgentBiContextualDrawer: FC<Props> = ({ context, onClose, opened }) => {
-    const rows = context === null ? [] : rowsOf(context);
+    const { t } = useAgentBiLocale();
+    const rows = context === null ? [] : rowsOf(context, t);
     return (
-        <Drawer opened={opened} onClose={onClose} title="Ask about this view">
+        <Drawer opened={opened} onClose={onClose} title={t('drawer.title')}>
             <Stack gap="sm">
                 {rows.length === 0 ? (
                     <Text c="dimmed" fz="sm">
-                        No live context is attached yet.
+                        {t('drawer.empty')}
                     </Text>
                 ) : (
                     rows.map(([key, value]) => (

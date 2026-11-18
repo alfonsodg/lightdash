@@ -4,63 +4,130 @@ import {
     DimensionType,
     FieldType,
     MetricType,
+    toResultRows,
     type ChartConfig,
+    type ChartFields,
     type RawResultRow,
 } from '@lightdash/common';
-import {
-    renderChart,
-    toResultRows,
-    type ChartFields,
-    type RenderedChart,
-} from '@lightdash/visualization';
-import { z } from 'zod';
+import { renderChart, type RenderedChart } from '@lightdash/visualization';
+import { getAgentBiString, type AgentBiLocale } from '../i18n/agentBiLocale';
 
-const queryPreviewSchema = z.object({
-    columns: z.record(
-        z.string(),
-        z.object({
-            format: z.string().nullable(),
-            label: z.string().nullable(),
-            type: z.string().nullable(),
-        }),
-    ),
-    dimensions: z.array(z.string()),
-    metrics: z.array(z.string()),
-    rows: z.array(z.record(z.string(), z.unknown())),
-});
+export type AgentBiQueryColumn = {
+    format: string | null;
+    label: string | null;
+    type: string | null;
+};
 
-const serializedResultValueSchema = z.object({
-    value: z.object({
-        formatted: z.string(),
-        raw: z.unknown(),
-    }),
-});
+export type AgentBiQueryPreview = {
+    columns: Record<string, AgentBiQueryColumn>;
+    dimensions: string[];
+    metrics: string[];
+    rows: Array<Record<string, unknown>>;
+};
 
-export type AgentBiQueryPreview = z.infer<typeof queryPreviewSchema>;
+export type AgentBiPaletteKey =
+    | 'corporate'
+    | 'emerald'
+    | 'ocean'
+    | 'sunset'
+    | 'contrast';
 
-const rawPreviewValue = (value: unknown): unknown => {
-    if (typeof value !== 'string') return value;
-    try {
-        const parsed = serializedResultValueSchema.safeParse(JSON.parse(value));
-        return parsed.success ? parsed.data.value.raw : value;
-    } catch {
-        return value;
+export const AGENT_BI_PALETTES: Record<AgentBiPaletteKey, string[]> = {
+    contrast: [
+        '#1D4ED8',
+        '#DC2626',
+        '#16A34A',
+        '#D97706',
+        '#7C3AED',
+        '#0891B2',
+        '#DB2777',
+        '#374151',
+    ],
+    corporate: [
+        '#2563EB',
+        '#06B6D4',
+        '#10B981',
+        '#F59E0B',
+        '#EC4899',
+        '#8B5CF6',
+        '#14B8A6',
+        '#F97316',
+    ],
+    emerald: [
+        '#059669',
+        '#10B981',
+        '#0D9488',
+        '#34D399',
+        '#2563EB',
+        '#F59E0B',
+        '#6366F1',
+        '#84CC16',
+    ],
+    ocean: [
+        '#1E40AF',
+        '#0284C7',
+        '#0891B2',
+        '#2DD4BF',
+        '#4F46E5',
+        '#38BDF8',
+        '#0F766E',
+        '#818CF8',
+    ],
+    sunset: [
+        '#EA580C',
+        '#F59E0B',
+        '#E11D48',
+        '#8B5CF6',
+        '#EC4899',
+        '#14B8A6',
+        '#F97316',
+        '#6366F1',
+    ],
+};
+
+const rawPreviewValue = (cell: unknown): unknown => {
+    if (
+        typeof cell === 'object' &&
+        cell !== null &&
+        'value' in cell &&
+        typeof (cell as { value: unknown }).value === 'object' &&
+        (cell as { value: unknown }).value !== null &&
+        'raw' in ((cell as { value: Record<string, unknown> }).value ?? {})
+    ) {
+        return (cell as { value: { raw: unknown } }).value.raw;
     }
+    return cell;
 };
 
 export const parseAgentBiQueryPreview = (
     value: unknown,
 ): AgentBiQueryPreview | null => {
-    const parsed = queryPreviewSchema.safeParse(value);
-    if (!parsed.success) return null;
+    if (typeof value !== 'object' || value === null) {
+        return null;
+    }
+    const candidate = value as Record<string, unknown>;
+    if (
+        typeof candidate.columns !== 'object' ||
+        candidate.columns === null ||
+        !Array.isArray(candidate.dimensions) ||
+        !Array.isArray(candidate.metrics) ||
+        !Array.isArray(candidate.rows)
+    ) {
+        return null;
+    }
     return {
-        ...parsed.data,
-        rows: parsed.data.rows.map((row) =>
+        columns: candidate.columns as Record<string, AgentBiQueryColumn>,
+        dimensions: candidate.dimensions.filter(
+            (item): item is string => typeof item === 'string',
+        ),
+        metrics: candidate.metrics.filter(
+            (item): item is string => typeof item === 'string',
+        ),
+        rows: candidate.rows.map((row) =>
             Object.fromEntries(
-                Object.entries(row).map(([fieldId, cell]) => [
-                    fieldId,
-                    rawPreviewValue(cell),
-                ]),
+                Object.entries(row as Record<string, unknown>).map(
+                    ([fieldId, cell]) => [fieldId, rawPreviewValue(cell)],
+                ),
             ),
         ),
     };
@@ -94,18 +161,29 @@ export type AgentBiChartViewMode =
     | 'line'
     | 'area'
     | 'pie'
+    | 'donut'
+    | 'funnel'
+    | 'radar'
+    | 'treemap'
+    | 'scatter'
+    | 'bar_3d'
     | 'table';
 
 export type AgentBiChartMetadata = {
     denominator?: string;
+    paletteName?: AgentBiPaletteKey;
     showDataLabels?: boolean;
+    showTableBelow?: boolean;
     subtitle?: string;
     title?: string;
     xAxisLabel?: string;
     yAxisLabel?: string;
 };
 
-export const deriveChartTitle = (preview: AgentBiQueryPreview): string => {
+export const deriveChartTitle = (
+    preview: AgentBiQueryPreview,
+    locale: AgentBiLocale = 'es',
+): string => {
     const metricLabels = preview.metrics.map(
         (id) => preview.columns[id]?.label ?? id,
     );
@@ -113,15 +191,17 @@ export const deriveChartTitle = (preview: AgentBiQueryPreview): string => {
         (id) => preview.columns[id]?.label ?? id,
     );
     if (metricLabels.length > 0 && dimLabels.length > 0) {
-        return `${metricLabels.join(', ')} por ${dimLabels.join(', ')}`;
+        const connector = getAgentBiString(locale, 'chart.titleConnector');
+        return `${metricLabels.join(', ')} ${connector} ${dimLabels.join(', ')}`;
     }
     if (metricLabels.length > 0) {
         return metricLabels.join(', ');
     }
     if (dimLabels.length > 0) {
-        return `Desglose de ${dimLabels.join(', ')}`;
+        const prefix = getAgentBiString(locale, 'chart.breakdownPrefix');
+        return `${prefix} ${dimLabels.join(', ')}`;
     }
-    return 'Resultado de consulta';
+    return getAgentBiString(locale, 'chart.defaultTitle');
 };
 
 const isTemporalDimension = (type: string | null | undefined): boolean => {
@@ -154,21 +234,247 @@ const resolveChartViewMode = (
     return 'bar';
 };
 
-const AGENT_BI_PALETTE = [
-    '#2563EB',
-    '#06B6D4',
-    '#10B981',
-    '#F59E0B',
-    '#EC4899',
-    '#8B5CF6',
-    '#14B8A6',
-    '#F97316',
-];
+const numericValue = (val: unknown): number => {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val === 'string') {
+        const n = Number(val);
+        if (Number.isFinite(n)) return n;
+    }
+    return 0;
+};
+
+const categoryLabel = (val: unknown): string =>
+    val === null || val === undefined || val === '' ? '—' : String(val);
+
+const buildCustomEchartsOutput = (
+    mode: 'funnel' | 'radar' | 'treemap' | 'bar_3d',
+    preview: AgentBiQueryPreview,
+    dimField: string,
+    metricFields: string[],
+    palette: string[],
+    options: {
+        showDataLabels: boolean;
+        xAxisLabel?: string;
+        yAxisLabel?: string;
+    },
+): RenderedChart => {
+    const primaryMetric = metricFields[0];
+    const items = preview.rows.slice(0, 20).map((row, idx) => ({
+        color: palette[idx % palette.length],
+        name: categoryLabel(row[dimField]),
+        value: numericValue(row[primaryMetric]),
+    }));
+
+    if (mode === 'funnel') {
+        return {
+            kind: 'echarts',
+            option: {
+                color: palette,
+                tooltip: { trigger: 'item' },
+                legend: { bottom: 0, type: 'scroll' },
+                series: [
+                    {
+                        data: [...items]
+                            .sort((a, b) => b.value - a.value)
+                            .map((item) => ({
+                                name: item.name,
+                                value: item.value,
+                            })),
+                        gap: 3,
+                        itemStyle: {
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            shadowBlur: 8,
+                            shadowColor: 'rgba(15, 23, 42, 0.12)',
+                        },
+                        label: {
+                            position: 'inside',
+                            show: options.showDataLabels,
+                        },
+                        left: '10%',
+                        top: 16,
+                        bottom: 40,
+                        type: 'funnel',
+                        width: '80%',
+                    },
+                ],
+            },
+        };
+    }
+
+    if (mode === 'treemap') {
+        return {
+            kind: 'echarts',
+            option: {
+                color: palette,
+                tooltip: { trigger: 'item' },
+                series: [
+                    {
+                        breadcrumb: { show: false },
+                        data: items.map((item, idx) => ({
+                            itemStyle: { color: palette[idx % palette.length] },
+                            name: item.name,
+                            value: item.value,
+                        })),
+                        itemStyle: {
+                            borderColor: '#ffffff',
+                            borderRadius: 6,
+                            borderWidth: 2,
+                            gapWidth: 2,
+                        },
+                        label: {
+                            formatter: options.showDataLabels
+                                ? '{b}\n{c}'
+                                : '{b}',
+                            show: true,
+                        },
+                        roam: false,
+                        type: 'treemap',
+                    },
+                ],
+            },
+        };
+    }
+
+    if (mode === 'radar') {
+        const categories = preview.rows.slice(0, 8);
+        const indicators =
+            metricFields.length >= 3
+                ? metricFields.map((mId) => {
+                      const maxVal = Math.max(
+                          1,
+                          ...categories.map((r) => numericValue(r[mId])),
+                      );
+                      return {
+                          max: Math.ceil(maxVal * 1.15),
+                          name: preview.columns[mId]?.label ?? mId,
+                      };
+                  })
+                : categories.map((r) => ({
+                      max: Math.ceil(
+                          Math.max(1, numericValue(r[primaryMetric])) * 1.15,
+                      ),
+                      name: categoryLabel(r[dimField]),
+                  }));
+
+        const seriesData =
+            metricFields.length >= 3
+                ? categories.map((r) => ({
+                      name: categoryLabel(r[dimField]),
+                      value: metricFields.map((mId) => numericValue(r[mId])),
+                  }))
+                : metricFields.map((mId) => ({
+                      name: preview.columns[mId]?.label ?? mId,
+                      value: categories.map((r) => numericValue(r[mId])),
+                  }));
+
+        return {
+            kind: 'echarts',
+            option: {
+                color: palette,
+                legend: { bottom: 0, type: 'scroll' },
+                radar: {
+                    indicator: indicators,
+                    radius: '62%',
+                },
+                series: [
+                    {
+                        areaStyle: { opacity: 0.18 },
+                        data: seriesData,
+                        type: 'radar',
+                    },
+                ],
+                tooltip: { trigger: 'item' },
+            },
+        };
+    }
+
+    // bar_3d: Isometric 3D prism bars using native ECharts bar + diamond top cap
+    const categories = items.map((i) => i.name);
+    const values = items.map((i) => i.value);
+    return {
+        kind: 'echarts',
+        option: {
+            color: palette,
+            grid: {
+                bottom: 48,
+                containLabel: true,
+                left: 20,
+                right: 20,
+                top: 28,
+            },
+            tooltip: { trigger: 'axis' },
+            xAxis: {
+                axisTick: { show: false },
+                data: categories,
+                name: options.xAxisLabel,
+                nameGap: 26,
+                nameLocation: 'middle',
+                type: 'category',
+            },
+            yAxis: {
+                name: options.yAxisLabel,
+                splitLine: { lineStyle: { type: 'dashed' } },
+                type: 'value',
+            },
+            series: [
+                {
+                    barWidth: 26,
+                    data: values.map((v, idx) => ({
+                        itemStyle: {
+                            borderRadius: [2, 2, 0, 0],
+                            color: {
+                                colorStops: [
+                                    {
+                                        color: palette[idx % palette.length],
+                                        offset: 0,
+                                    },
+                                    { color: '#1E293B', offset: 1 },
+                                ],
+                                type: 'linear',
+                                x: 0,
+                                x2: 0,
+                                y: 0,
+                                y2: 1,
+                            },
+                            shadowBlur: 12,
+                            shadowColor: 'rgba(30, 64, 175, 0.25)',
+                            shadowOffsetX: 6,
+                            shadowOffsetY: 4,
+                        },
+                        value: v,
+                    })),
+                    label: {
+                        position: 'top',
+                        show: options.showDataLabels,
+                    },
+                    name:
+                        preview.columns[primaryMetric]?.label ?? primaryMetric,
+                    type: 'bar',
+                },
+                {
+                    data: values.map((v, idx) => ({
+                        itemStyle: { color: palette[idx % palette.length] },
+                        value: v,
+                    })),
+                    symbol: 'diamond',
+                    symbolOffset: [0, '-50%'],
+                    symbolPosition: 'end',
+                    symbolSize: [26, 10],
+                    tooltip: { show: false },
+                    type: 'pictorialBar',
+                    z: 12,
+                },
+            ],
+        },
+    };
+};
 
 const buildCartesianConfig = (
     xField: string,
     yFields: string[],
     seriesType: CartesianSeriesType,
+    palette: string[],
     options: {
         flipAxes?: boolean;
         showDataLabels: boolean;
@@ -194,7 +500,7 @@ const buildCartesianConfig = (
                       }
                     : {}),
                 series: yFields.map((yField, index) => ({
-                    color: AGENT_BI_PALETTE[index % AGENT_BI_PALETTE.length],
+                    color: palette[index % palette.length],
                     encode: {
                         xRef: { field: xField },
                         yRef: { field: yField },
@@ -219,6 +525,9 @@ export const buildAgentBiQueryOutput = (
     mode: AgentBiChartViewMode = 'auto',
     metadata: AgentBiChartMetadata = {},
 ): RenderedChart => {
+    const palette =
+        AGENT_BI_PALETTES[metadata.paletteName ?? 'corporate'] ??
+        AGENT_BI_PALETTES.corporate;
     const dimensions = preview.dimensions.filter((fieldId) =>
         Object.hasOwn(preview.columns, fieldId),
     );
@@ -242,7 +551,6 @@ export const buildAgentBiQueryOutput = (
         ]),
     );
     const rows = toResultRows(preview.rows as RawResultRow[], fields);
-    let chartConfig: ChartConfig;
     const effectiveMode = resolveChartViewMode(
         preview,
         dimensions,
@@ -261,6 +569,25 @@ export const buildAgentBiQueryOutput = (
             : undefined);
     const showDataLabels = metadata.showDataLabels ?? true;
 
+    if (
+        (effectiveMode === 'funnel' ||
+            effectiveMode === 'radar' ||
+            effectiveMode === 'treemap' ||
+            effectiveMode === 'bar_3d') &&
+        dimensions.length > 0 &&
+        metrics.length > 0
+    ) {
+        return buildCustomEchartsOutput(
+            effectiveMode,
+            preview,
+            dimensions[0],
+            metrics,
+            palette,
+            { showDataLabels, xAxisLabel, yAxisLabel },
+        );
+    }
+
+    let chartConfig: ChartConfig;
     if (
         mode === 'auto' &&
         metrics.length > 0 &&
@@ -286,6 +613,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.LINE,
+                    palette,
                     { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
@@ -294,6 +622,16 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.AREA,
+                    palette,
+                    { showDataLabels, xAxisLabel, yAxisLabel },
+                );
+                break;
+            case 'scatter':
+                chartConfig = buildCartesianConfig(
+                    dimensions[0],
+                    metrics,
+                    CartesianSeriesType.SCATTER,
+                    palette,
                     { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
@@ -302,10 +640,24 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.BAR,
+                    palette,
                     { flipAxes: true, showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
             case 'pie':
+                chartConfig = {
+                    type: ChartType.PIE,
+                    config: {
+                        groupFieldIds: [dimensions[0]],
+                        isDonut: false,
+                        metricId: metrics[0],
+                        showPercentage: true,
+                        showValue: true,
+                        valueLabel: 'outside',
+                    },
+                };
+                break;
+            case 'donut':
                 chartConfig = {
                     type: ChartType.PIE,
                     config: {
@@ -324,6 +676,7 @@ export const buildAgentBiQueryOutput = (
                     dimensions[0],
                     metrics,
                     CartesianSeriesType.BAR,
+                    palette,
                     { showDataLabels, xAxisLabel, yAxisLabel },
                 );
                 break;
@@ -331,6 +684,7 @@ export const buildAgentBiQueryOutput = (
     } else {
         chartConfig = { type: ChartType.TABLE };
     }
+
     return renderChart(
         {
             chartConfig,
@@ -341,6 +695,21 @@ export const buildAgentBiQueryOutput = (
             query: { dimensions, metrics },
             rows,
         },
-        { colors: { palette: AGENT_BI_PALETTE } },
+        { colors: { palette } },
     );
+};
+
+export const exportPreviewToCsv = (preview: AgentBiQueryPreview): string => {
+    const columnIds = Object.keys(preview.columns);
+    const escapeCell = (val: unknown): string => {
+        const str = val === null || val === undefined ? '' : String(val);
+        return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const header = columnIds
+        .map((id) => escapeCell(preview.columns[id]?.label ?? id))
+        .join(',');
+    const body = preview.rows.map((row) =>
+        columnIds.map((id) => escapeCell(row[id])).join(','),
+    );
+    return `\uFEFF${[header, ...body].join('\n')}`;
 };

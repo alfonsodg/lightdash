@@ -5,12 +5,14 @@ import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 import useApp from '../../../providers/App/useApp';
 import { useAgentBiHealth } from '../hooks/useAgentBiHealth';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 
 type Props = {
     projectUuid: string;
 };
 
 const AgentBiNavButton = ({ projectUuid }: Props): ReactElement | null => {
+    const { t } = useAgentBiLocale();
     const { isEnabled } = useAgentBiHealth();
     const { user } = useApp();
     const navigate = useNavigate();
@@ -31,14 +33,14 @@ const AgentBiNavButton = ({ projectUuid }: Props): ReactElement | null => {
 
     return (
         <Button
-            aria-label="Ask AI"
+            aria-label={t('launcher.nav')}
             size="xs"
             variant="default"
             fz="sm"
             leftSection={<IconSparkles size={16} aria-hidden />}
             onClick={goToWorkspace}
         >
-            Ask AI
+            {t('launcher.nav')}
         </Button>
     );
 };

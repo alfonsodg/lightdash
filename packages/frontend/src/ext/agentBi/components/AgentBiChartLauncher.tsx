@@ -10,9 +10,11 @@ import {
 } from '../../../features/explorer/store';
 import useApp from '../../../providers/App/useApp';
 import { useAgentBiHealth } from '../hooks/useAgentBiHealth';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import AgentBiWorkspacePage from '../pages/AgentBiWorkspacePage';
 
 const AgentBiChartLauncher = (): ReactElement | null => {
+    const { t } = useAgentBiLocale();
     const [opened, setOpened] = useState(false);
     const { projectUuid = '' } = useParams<{ projectUuid: string }>();
     const savedChart = useExplorerSelector(selectSavedChart);
@@ -35,20 +37,20 @@ const AgentBiChartLauncher = (): ReactElement | null => {
     return (
         <>
             <Button
-                aria-label="Ask about this chart"
+                aria-label={t('launcher.chart')}
                 leftSection={<IconSparkles size={16} aria-hidden />}
                 onClick={() => setOpened(true)}
                 size="xs"
                 variant="default"
             >
-                Ask about this chart
+                {t('launcher.chart')}
             </Button>
             <Drawer
                 onClose={() => setOpened(false)}
                 opened={opened}
                 position="right"
                 size="min(90vw, 1200px)"
-                title="Ask about this chart"
+                title={t('launcher.chart')}
             >
                 <AgentBiWorkspacePage
                     dashboardContext={{

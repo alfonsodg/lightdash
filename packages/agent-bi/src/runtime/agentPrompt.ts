@@ -13,6 +13,7 @@ export interface RuntimeOverrides {
     allowedSchemas?: string[];
     dateZoom?: string;
     filters?: Record<string, unknown>;
+    locale?: 'es' | 'en';
     parameters?: Record<string, unknown>;
 }
 
@@ -101,6 +102,11 @@ export const buildSystemPrompt = (context: PromptContext): string => {
         ) {
             lines.push(
                 `Session allowed schemas: ${overrides.allowedSchemas.join(', ')}. Use inspect_warehouse_columns and run_sql with schema-qualified names (schema.table) and JOIN across tables in these schemas; do not query schemas outside this list.`,
+            );
+        }
+        if (overrides.locale === 'es' || overrides.locale === 'en') {
+            lines.push(
+                `Response language: ${overrides.locale === 'es' ? 'Spanish' : 'English'}. Write answers, summaries, and table headers in this language.`,
             );
         }
         const parts: string[] = [];

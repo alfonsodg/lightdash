@@ -31,3 +31,9 @@
     height: 320px;
     width: 100%;
 }
+
+.splitTable {
+    border-top: 1px solid var(--mantine-color-indigo-1);
+    padding-top: var(--mantine-spacing-sm);
+    margin-top: var(--mantine-spacing-xs);
+}

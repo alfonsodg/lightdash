@@ -123,6 +123,7 @@ const turnContextSchema = z.object({
             allowedSchemas: z.array(z.string().trim().min(1)).optional(),
             dateZoom: z.string().optional(),
             filters: z.record(z.string(), z.unknown()).optional(),
+            locale: z.enum(['es', 'en']).optional(),
             parameters: z.record(z.string(), z.unknown()).optional(),
         })
         .strict()

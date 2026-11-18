@@ -5,6 +5,7 @@ import { useComputedColorScheme } from '@mantine/core';
 import { IconArrowUpRight } from '@tabler/icons-react';
 import { lazy, Suspense, type ReactElement } from 'react';
 import EChartsReact from '../../../components/EChartsReactWrapper';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import classes from './AgentBiChartRenderer.module.css';
 
 const VegaEmbed = lazy(() =>
@@ -126,13 +127,15 @@ const BigNumberBody = ({
 };
 
 const CustomBody = ({
+    loadingLabel,
     output,
 }: {
+    loadingLabel: string;
     output: Extract<RenderedChart, { kind: 'custom' }>;
 }): ReactElement => {
     const isDark = useComputedColorScheme('light') === 'dark';
     return (
-        <Suspense fallback={<Text c="dimmed">Loading chart…</Text>}>
+        <Suspense fallback={<Text c="dimmed">{loadingLabel}</Text>}>
             <VegaEmbed
                 // @ts-ignore: Vega-Lite spec union types mismatch, same as CustomVisualization
                 spec={{
@@ -148,14 +151,15 @@ const CustomBody = ({
 };
 
 const EmptyBody = ({
+    noRowsLabel,
     output,
+    unavailableLabel,
 }: {
+    noRowsLabel: string;
     output: Extract<RenderedChart, { kind: 'empty' }>;
+    unavailableLabel: string;
 }): ReactElement => {
-    const label =
-        output.reason === 'noRows'
-            ? 'No data for this query.'
-            : 'This view is not available.';
+    const label = output.reason === 'noRows' ? noRowsLabel : unavailableLabel;
     return (
         <Paper variant="dotted" p="md">
             <Text c="dimmed" ta="center">
@@ -165,21 +169,29 @@ const EmptyBody = ({
     );
 };
 
-const UnsupportedBody = ({ href }: { href?: string }): ReactElement => {
+const UnsupportedBody = ({
+    href,
+    openChartLabel,
+    unsupportedLabel,
+}: {
+    href?: string;
+    openChartLabel: string;
+    unsupportedLabel: string;
+}): ReactElement => {
     if (href === undefined) {
         return (
             <Paper variant="dotted" p="md">
                 <Text c="dimmed" ta="center">
-                    This chart type is not previewed here.
+                    {unsupportedLabel}
                 </Text>
             </Paper>
         );
     }
     return (
         <Paper variant="dotted" p="md">
-            <Anchor href={href} c="dimmed" aria-label="Open chart">
+            <Anchor href={href} c="dimmed" aria-label={openChartLabel}>
                 <Text c="dimmed" ta="center" fz="sm">
-                    Open chart <IconArrowUpRight size={14} aria-hidden />
+                    {openChartLabel} <IconArrowUpRight size={14} aria-hidden />
                 </Text>
             </Anchor>
         </Paper>
@@ -189,6 +201,7 @@ const UnsupportedBody = ({ href }: { href?: string }): ReactElement => {
 type Props = {
     href?: string;
     output: RenderedChart;
+    secondaryTableOutput?: RenderedChart;
     subtitle?: string;
     title?: string;
 };
@@ -196,9 +209,11 @@ type Props = {
 const AgentBiChartRenderer = ({
     href,
     output,
+    secondaryTableOutput,
     subtitle,
     title,
 }: Props): ReactElement => {
+    const { t } = useAgentBiLocale();
     let body: ReactElement;
     switch (output.kind) {
         case 'echarts':
@@ -211,13 +226,30 @@ const AgentBiChartRenderer = ({
             body = <BigNumberBody output={output} />;
             break;
         case 'custom':
-            body = <CustomBody output={output} />;
+            body = (
+                <CustomBody
+                    loadingLabel={t('renderer.loading')}
+                    output={output}
+                />
+            );
             break;
         case 'empty':
-            body = <EmptyBody output={output} />;
+            body = (
+                <EmptyBody
+                    noRowsLabel={t('renderer.noRows')}
+                    output={output}
+                    unavailableLabel={t('renderer.unavailable')}
+                />
+            );
             break;
         case 'unsupported':
-            body = <UnsupportedBody href={href} />;
+            body = (
+                <UnsupportedBody
+                    href={href}
+                    openChartLabel={t('renderer.openChart')}
+                    unsupportedLabel={t('renderer.unsupported')}
+                />
+            );
             break;
         default:
             body = assertUnreachable(output, 'Unknown render output');
@@ -239,6 +271,11 @@ const AgentBiChartRenderer = ({
                 </Stack>
             ) : null}
             {body}
+            {secondaryTableOutput?.kind === 'table' ? (
+                <div className={classes.splitTable}>
+                    <TableBody output={secondaryTableOutput} />
+                </div>
+            ) : null}
         </Paper>
     );
 };

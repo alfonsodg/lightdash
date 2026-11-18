@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    AGENT_BI_PALETTES,
     buildAgentBiQueryOutput,
+    deriveChartTitle,
+    exportPreviewToCsv,
     parseAgentBiQueryPreview,
 } from './agentBiQueryArtifact';
 
@@ -101,5 +104,39 @@ describe('agent BI query artifacts', () => {
             'echarts',
         );
         expect(buildAgentBiQueryOutput(preview, 'pie').kind).toBe('echarts');
+    });
+
+    it('supports advanced chart modes: donut, funnel, radar, treemap, scatter, and bar_3d', () => {
+        const modes = [
+            'donut',
+            'funnel',
+            'radar',
+            'treemap',
+            'scatter',
+            'bar_3d',
+        ] as const;
+        for (const mode of modes) {
+            const output = buildAgentBiQueryOutput(preview, mode, {
+                paletteName: 'emerald',
+            });
+            expect(output.kind).toBe('echarts');
+            if (output.kind === 'echarts') {
+                expect(output.option.color).toEqual(
+                    AGENT_BI_PALETTES.emerald.colors,
+                );
+            }
+        }
+    });
+
+    it('exports preview rows to escaped CSV and derives locale-aware titles', () => {
+        const csv = exportPreviewToCsv({
+            ...preview,
+            rows: [{ orders_count: 3, orders_status: 'complete, "vip"' }],
+        });
+        expect(csv).toContain('Status,Orders');
+        expect(csv).toContain('"complete, ""vip""",3');
+
+        expect(deriveChartTitle(preview, 'es')).toBe('Orders por Status');
+        expect(deriveChartTitle(preview, 'en')).toBe('Orders by Status');
     });
 });

@@ -3,18 +3,22 @@ import {
     Group,
     Popover,
     SegmentedControl,
+    Select,
     Stack,
     Switch,
     TextInput,
 } from '@mantine/core';
-import { IconPencil, IconPin } from '@tabler/icons-react';
+import { IconDownload, IconPencil, IconPin } from '@tabler/icons-react';
 import { useState, type FC } from 'react';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import AgentBiChartRenderer from './AgentBiChartRenderer';
 import {
     buildAgentBiQueryOutput,
     deriveChartTitle,
+    exportPreviewToCsv,
     type AgentBiChartMetadata,
     type AgentBiChartViewMode,
+    type AgentBiPaletteKey,
     type AgentBiQueryPreview,
 } from './agentBiQueryArtifact';
 
@@ -31,16 +35,38 @@ type Props = {
     preview: AgentBiQueryPreview;
 };
 
-const VIEW_MODE_OPTIONS: Array<{ label: string; value: AgentBiChartViewMode }> =
-    [
-        { label: 'Auto', value: 'auto' },
-        { label: 'Barras', value: 'bar' },
-        { label: 'Horiz.', value: 'horizontal_bar' },
-        { label: 'Líneas', value: 'line' },
-        { label: 'Área', value: 'area' },
-        { label: 'Circular', value: 'pie' },
-        { label: 'Tabla', value: 'table' },
-    ];
+const QUICK_MODES: AgentBiChartViewMode[] = [
+    'auto',
+    'bar',
+    'line',
+    'donut',
+    'bar_3d',
+    'table',
+];
+
+const ALL_MODES: AgentBiChartViewMode[] = [
+    'auto',
+    'bar',
+    'horizontal_bar',
+    'line',
+    'area',
+    'pie',
+    'donut',
+    'funnel',
+    'radar',
+    'treemap',
+    'scatter',
+    'bar_3d',
+    'table',
+];
+
+const PALETTE_KEYS: AgentBiPaletteKey[] = [
+    'corporate',
+    'emerald',
+    'ocean',
+    'sunset',
+    'contrast',
+];
 
 const AgentBiQueryArtifact: FC<Props> = ({
     initialMetadata,
@@ -50,6 +76,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
     onPinToTab,
     preview,
 }) => {
+    const { locale, t } = useAgentBiLocale();
     const [mode, setMode] = useState<AgentBiChartViewMode>(initialMode);
     const [metadata, setMetadata] = useState<AgentBiChartMetadata>(
         initialMetadata ?? {},
@@ -63,45 +90,109 @@ const AgentBiQueryArtifact: FC<Props> = ({
         onMetadataChange?.(next);
     };
 
+    const handleModeChange = (next: AgentBiChartViewMode) => {
+        setMode(next);
+        onModeChange?.(next);
+    };
+
+    const handleDownloadCsv = () => {
+        const csv = exportPreviewToCsv(preview);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${resolvedTitle.toLowerCase().replace(/[^a-z0-9]+/gi, '-')}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     const resolvedTitle =
         metadata.title !== undefined && metadata.title.trim() !== ''
             ? metadata.title
-            : deriveChartTitle(preview);
+            : deriveChartTitle(preview, locale);
     const subtitleParts = [
         metadata.subtitle?.trim(),
         metadata.denominator?.trim()
-            ? `Denominador: ${metadata.denominator.trim()}`
+            ? `${t('chart.denominatorPrefix')} ${metadata.denominator.trim()}`
             : undefined,
     ].filter((part): part is string => Boolean(part && part.length > 0));
+
+    const quickModeOptions = QUICK_MODES.map((m) => ({
+        label: t(`chart.mode.${m}`),
+        value: m,
+    }));
+
+    const allModeOptions = ALL_MODES.map((m) => ({
+        label: t(`chart.mode.${m}`),
+        value: m,
+    }));
+
+    const paletteOptions = PALETTE_KEYS.map((key) => ({
+        label: t(`chart.palette.${key}`),
+        value: key,
+    }));
+
+    const primaryOutput = buildAgentBiQueryOutput(preview, mode, metadata);
+    const showSplitTable =
+        Boolean(metadata.showTableBelow) && primaryOutput.kind !== 'table';
+    const secondaryTableOutput = showSplitTable
+        ? buildAgentBiQueryOutput(preview, 'table', metadata)
+        : undefined;
 
     return (
         <Stack gap="xs">
             <Group justify="space-between" gap="xs" wrap="wrap">
                 {canSwitchChart ? (
-                    <SegmentedControl
-                        size="xs"
-                        color="indigo"
-                        aria-label="Modo de visualización"
-                        value={mode}
-                        onChange={(next) => {
-                            const typed = next as AgentBiChartViewMode;
-                            setMode(typed);
-                            onModeChange?.(typed);
-                        }}
-                        data={VIEW_MODE_OPTIONS}
-                    />
+                    <Group gap="xs" wrap="wrap">
+                        <SegmentedControl
+                            size="xs"
+                            color="indigo"
+                            aria-label={t('chart.modeAriaLabel')}
+                            value={
+                                QUICK_MODES.includes(mode) ? mode : undefined
+                            }
+                            onChange={(next) =>
+                                handleModeChange(next as AgentBiChartViewMode)
+                            }
+                            data={quickModeOptions}
+                        />
+                        <Select
+                            size="xs"
+                            w={125}
+                            aria-label={t('chart.modeAriaLabel')}
+                            value={mode}
+                            data={allModeOptions}
+                            onChange={(next) => {
+                                if (next) {
+                                    handleModeChange(
+                                        next as AgentBiChartViewMode,
+                                    );
+                                }
+                            }}
+                        />
+                    </Group>
                 ) : (
                     <span />
                 )}
                 <Group gap={4}>
-                    <Popover width={280} position="bottom-end" shadow="md">
+                    <ActionIcon
+                        variant="light"
+                        color="blue"
+                        size="sm"
+                        aria-label={t('chart.downloadCsv')}
+                        title={t('chart.downloadCsv')}
+                        onClick={handleDownloadCsv}
+                    >
+                        <IconDownload size={15} />
+                    </ActionIcon>
+                    <Popover width={295} position="bottom-end" shadow="md">
                         <Popover.Target>
                             <ActionIcon
                                 variant="light"
                                 color="indigo"
                                 size="sm"
-                                aria-label="Editar rótulos del gráfico"
-                                title="Editar título, subtítulo, denominador y ejes"
+                                aria-label={t('chart.editLabels')}
+                                title={t('chart.editLabelsTitle')}
                             >
                                 <IconPencil size={15} />
                             </ActionIcon>
@@ -110,8 +201,11 @@ const AgentBiQueryArtifact: FC<Props> = ({
                             <Stack gap="xs">
                                 <TextInput
                                     size="xs"
-                                    label="Título"
-                                    placeholder={deriveChartTitle(preview)}
+                                    label={t('chart.field.title')}
+                                    placeholder={deriveChartTitle(
+                                        preview,
+                                        locale,
+                                    )}
                                     value={metadata.title ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -121,8 +215,10 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Subtítulo"
-                                    placeholder="Contexto o período"
+                                    label={t('chart.field.subtitle')}
+                                    placeholder={t(
+                                        'chart.field.subtitlePlaceholder',
+                                    )}
                                     value={metadata.subtitle ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -132,8 +228,10 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Denominador"
-                                    placeholder="Ej. Total de registros en bronze"
+                                    label={t('chart.field.denominator')}
+                                    placeholder={t(
+                                        'chart.field.denominatorPlaceholder',
+                                    )}
                                     value={metadata.denominator ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -142,9 +240,23 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                         })
                                     }
                                 />
+                                <Select
+                                    size="xs"
+                                    label={t('chart.field.palette')}
+                                    value={metadata.paletteName ?? 'corporate'}
+                                    data={paletteOptions}
+                                    onChange={(val) => {
+                                        if (val) {
+                                            updateMetadata({
+                                                paletteName:
+                                                    val as AgentBiPaletteKey,
+                                            });
+                                        }
+                                    }}
+                                />
                                 <TextInput
                                     size="xs"
-                                    label="Etiqueta eje X"
+                                    label={t('chart.field.xAxis')}
                                     value={metadata.xAxisLabel ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -155,7 +267,7 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <TextInput
                                     size="xs"
-                                    label="Etiqueta eje Y"
+                                    label={t('chart.field.yAxis')}
                                     value={metadata.yAxisLabel ?? ''}
                                     onChange={(event) =>
                                         updateMetadata({
@@ -166,11 +278,22 @@ const AgentBiQueryArtifact: FC<Props> = ({
                                 />
                                 <Switch
                                     size="xs"
-                                    label="Mostrar valores en el gráfico"
+                                    label={t('chart.field.showDataLabels')}
                                     checked={metadata.showDataLabels ?? true}
                                     onChange={(event) =>
                                         updateMetadata({
                                             showDataLabels:
+                                                event.currentTarget.checked,
+                                        })
+                                    }
+                                />
+                                <Switch
+                                    size="xs"
+                                    label={t('chart.field.showTableBelow')}
+                                    checked={metadata.showTableBelow ?? false}
+                                    onChange={(event) =>
+                                        updateMetadata({
+                                            showTableBelow:
                                                 event.currentTarget.checked,
                                         })
                                     }
@@ -183,8 +306,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                             variant="light"
                             color="teal"
                             size="sm"
-                            aria-label="Fijar en pestaña"
-                            title="Fijar en la pestaña activa"
+                            aria-label={t('chart.pinToTab')}
+                            title={t('chart.pinToTabTitle')}
                             onClick={() =>
                                 onPinToTab({
                                     metadata: {
@@ -202,7 +325,8 @@ const AgentBiQueryArtifact: FC<Props> = ({
                 </Group>
             </Group>
             <AgentBiChartRenderer
-                output={buildAgentBiQueryOutput(preview, mode, metadata)}
+                output={primaryOutput}
+                secondaryTableOutput={secondaryTableOutput}
                 subtitle={subtitleParts.join(' · ')}
                 title={resolvedTitle}
             />

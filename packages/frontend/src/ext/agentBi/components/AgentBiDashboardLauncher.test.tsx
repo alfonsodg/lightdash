@@ -33,7 +33,7 @@ describe('AgentBiDashboardLauncher', () => {
             </MantineBaseProvider>,
         );
         fireEvent.click(
-            screen.getByRole('button', { name: 'Ask about this dashboard' }),
+            screen.getByRole('button', { name: 'Consultar este tablero' }),
         );
         expect(workspace).toHaveBeenCalledWith(
             expect.objectContaining({

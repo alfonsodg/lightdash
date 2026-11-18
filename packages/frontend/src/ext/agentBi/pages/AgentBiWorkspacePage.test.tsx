@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import MantineBaseProvider from '../../../providers/MantineBaseProvider';
 import { decideApproval } from '../api';
 import { streamThreadTurn } from '../hooks/useAgentBiStream';
+import { AgentBiLocaleProvider } from '../i18n/AgentBiLocaleContext';
 import AgentBiWorkspacePage from './AgentBiWorkspacePage';
 
 vi.mock('../hooks/useAgentBiThreads', () => ({
@@ -269,5 +270,24 @@ describe('AgentBiWorkspacePage', () => {
         expect(
             screen.getByLabelText('Escribe tu consulta'),
         ).toBeInTheDocument();
+    });
+
+    it('switches UI labels live between ES and EN when toggled', () => {
+        localStorage.clear();
+        render(
+            <MantineBaseProvider env="test">
+                <MemoryRouter>
+                    <AgentBiLocaleProvider>
+                        <AgentBiWorkspacePage />
+                    </AgentBiLocaleProvider>
+                </MemoryRouter>
+            </MantineBaseProvider>,
+        );
+
+        expect(screen.getByText('Espacios de trabajo')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('EN'));
+        expect(screen.getByText('Workspaces')).toBeInTheDocument();
+        expect(screen.getByText('Session schemas')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ask your question')).toBeInTheDocument();
     });
 });

@@ -39,7 +39,7 @@ describe('AgentBiChartLauncher', () => {
             </MantineProvider>,
         );
         expect(
-            screen.getByRole('button', { name: 'Ask about this chart' }),
+            screen.getByRole('button', { name: 'Consultar este gráfico' }),
         ).toBeInTheDocument();
     });
 });

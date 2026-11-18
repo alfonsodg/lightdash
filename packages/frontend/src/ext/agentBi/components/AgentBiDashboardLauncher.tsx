@@ -6,6 +6,7 @@ import useIsEmbedded from '../../../ee/providers/Embed/useIsEmbedded';
 import useApp from '../../../providers/App/useApp';
 import { useAgentBiDashboardContext } from '../hooks/useAgentBiDashboardContext';
 import { useAgentBiHealth } from '../hooks/useAgentBiHealth';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import AgentBiWorkspacePage from '../pages/AgentBiWorkspacePage';
 
 type Props = { projectUuid: string };
@@ -13,6 +14,7 @@ type Props = { projectUuid: string };
 const AgentBiDashboardLauncher = ({
     projectUuid,
 }: Props): ReactElement | null => {
+    const { t } = useAgentBiLocale();
     const [opened, setOpened] = useState(false);
     const context = useAgentBiDashboardContext();
     const { isEnabled } = useAgentBiHealth();
@@ -30,20 +32,20 @@ const AgentBiDashboardLauncher = ({
     return (
         <>
             <Button
-                aria-label="Ask about this dashboard"
+                aria-label={t('launcher.dashboard')}
                 leftSection={<IconSparkles size={16} aria-hidden />}
                 onClick={() => setOpened(true)}
                 size="xs"
                 variant="default"
             >
-                Ask about this dashboard
+                {t('launcher.dashboard')}
             </Button>
             <Drawer
                 onClose={() => setOpened(false)}
                 opened={opened}
                 position="right"
                 size="min(90vw, 1200px)"
-                title="Ask about this dashboard"
+                title={t('launcher.dashboard')}
             >
                 <AgentBiWorkspacePage dashboardContext={context} />
             </Drawer>

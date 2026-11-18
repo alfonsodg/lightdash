@@ -12,6 +12,7 @@ import { IconGripVertical, IconPlus, IconX } from '@tabler/icons-react';
 import { useState, type FC } from 'react';
 import { type Layout } from 'react-grid-layout';
 import { ResponsiveGridLayout } from '../../../features/dashboardTabs/ResponsiveGridLayout';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import classes from './AgentBiCanvasBoard.module.css';
 import AgentBiQueryArtifact from './AgentBiQueryArtifact';
 import type {
@@ -71,6 +72,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
     onUpdateLayouts,
     tabs,
 }) => {
+    const { t } = useAgentBiLocale();
     const [newTabName, setNewTabName] = useState('');
     const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
@@ -120,7 +122,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                                             component="span"
                                             size="xs"
                                             variant="subtle"
-                                            aria-label={`Eliminar pestaña ${tab.name}`}
+                                            aria-label={`${t('canvas.removeTabPrefix')} ${tab.name}`}
                                             onClick={(event) => {
                                                 event.stopPropagation();
                                                 onRemoveTab(tab.id);
@@ -139,8 +141,8 @@ const AgentBiCanvasBoard: FC<Props> = ({
                 <Group gap="xs" wrap="nowrap">
                     <TextInput
                         size="xs"
-                        aria-label="Nombre de pestaña"
-                        placeholder="Nombre de pestaña"
+                        aria-label={t('canvas.newTabPlaceholder')}
+                        placeholder={t('canvas.newTabPlaceholder')}
                         value={newTabName}
                         onChange={(event) =>
                             setNewTabName(event.currentTarget.value)
@@ -156,7 +158,7 @@ const AgentBiCanvasBoard: FC<Props> = ({
                         leftSection={<IconPlus size={14} />}
                         onClick={handleCreateTab}
                     >
-                        Agregar pestaña
+                        {t('canvas.addTab')}
                     </Button>
                 </Group>
             </Group>
@@ -170,13 +172,10 @@ const AgentBiCanvasBoard: FC<Props> = ({
                 >
                     <Stack gap="xs" align="center">
                         <Text fw={700} c="indigo.9">
-                            Lienzo de análisis BI
+                            {t('canvas.emptyTitle')}
                         </Text>
                         <Text size="sm" c="dimmed" ta="center">
-                            Escribe una consulta en el panel derecho. Los
-                            gráficos y tablas aparecerán aquí automáticamente y
-                            podrás arrastrarlos, redimensionarlos y organizarlos
-                            por pestañas.
+                            {t('canvas.emptyDescription')}
                         </Text>
                     </Stack>
                 </Paper>
@@ -215,14 +214,14 @@ const AgentBiCanvasBoard: FC<Props> = ({
                                     >
                                         <IconGripVertical size={15} />
                                         <Text size="xs" c="dimmed">
-                                            Arrastrar para priorizar
+                                            {t('canvas.dragToPrioritize')}
                                         </Text>
                                     </Group>
                                     <ActionIcon
                                         size="xs"
                                         variant="subtle"
-                                        aria-label="Quitar tarjeta"
-                                        title="Quitar tarjeta"
+                                        aria-label={t('canvas.removeCard')}
+                                        title={t('canvas.removeCard')}
                                         onClick={() =>
                                             onRemoveCard(activeTab.id, card.id)
                                         }

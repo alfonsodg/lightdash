@@ -197,7 +197,7 @@ describe('AgentBiChartRenderer', () => {
         renderWithProviders(
             <AgentBiChartRenderer output={rendered('empty')} />,
         );
-        expect(screen.getByText(/no data/i)).toBeInTheDocument();
+        expect(screen.getByText(/sin datos/i)).toBeInTheDocument();
     });
 
     it('renders deep-link fallback for unsupported maps', () => {
@@ -207,6 +207,18 @@ describe('AgentBiChartRenderer', () => {
                 output={rendered('unsupported')}
             />,
         );
-        expect(screen.getByText(/open chart/i)).toBeInTheDocument();
+        expect(screen.getByText(/abrir gráfico/i)).toBeInTheDocument();
+    });
+
+    it('renders combined Chart + Table when secondaryTableOutput is provided', () => {
+        renderWithProviders(
+            <AgentBiChartRenderer
+                output={rendered('bigNumber')}
+                secondaryTableOutput={rendered('table')}
+                title="Ingresos"
+            />,
+        );
+        expect(screen.getByText('42')).toBeInTheDocument();
+        expect(screen.getByRole('table')).toBeInTheDocument();
     });
 });

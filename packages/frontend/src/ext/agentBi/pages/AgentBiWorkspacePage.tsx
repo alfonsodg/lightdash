@@ -4,6 +4,7 @@ import {
     Button,
     Group,
     Paper,
+    SegmentedControl,
     Stack,
     Text,
     TextInput,
@@ -42,6 +43,7 @@ import {
     type StreamInput,
 } from '../hooks/useAgentBiStream';
 import { useAgentBiThreads } from '../hooks/useAgentBiThreads';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import classes from './AgentBiWorkspacePage.module.css';
 
 type PendingApproval = {
@@ -101,6 +103,7 @@ const loadSavedSchemas = (
 
 const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const { projectUuid = '' } = useParams();
+    const { locale, setLocale, t } = useAgentBiLocale();
     const {
         data: threads,
         isLoading,
@@ -358,7 +361,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                 pinCardToTab({ preview });
             }
         } else if (event.type === 'error') {
-            appendLine('error', 'No se pudo completar la consulta.');
+            appendLine('error', t('rightSidebar.turnFailed'));
         }
     };
 
@@ -390,16 +393,16 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                       filters: dashboardContext?.dashboardFilters
                           ? { ...dashboardContext.dashboardFilters }
                           : undefined,
+                      locale,
                       parameters: dashboardContext?.parameters,
                   },
               }
-            : allowedSchemas
-              ? {
-                    runtimeOverrides: {
-                        allowedSchemas,
-                    },
-                }
-              : {};
+            : {
+                  runtimeOverrides: {
+                      ...(allowedSchemas ? { allowedSchemas } : {}),
+                      locale,
+                  },
+              };
         setDraft('');
         setStreaming(true);
         appendLine('user', text);
@@ -511,8 +514,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         variant="light"
                         color="indigo"
                         size="lg"
-                        aria-label="Expandir asistente"
-                        title="Expandir asistente"
+                        aria-label={t('rightSidebar.expand')}
+                        title={t('rightSidebar.expand')}
                         onClick={() => setSidebarCollapsed(false)}
                     >
                         <IconLayoutSidebarRightExpand size={18} />
@@ -534,19 +537,33 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                     <IconSparkles size={16} />
                                 </ThemeIcon>
                                 <Text fw={700} fz="lg" c="indigo.9">
-                                    Asistente BI
+                                    {t('rightSidebar.title')}
                                 </Text>
                             </Group>
-                            <ActionIcon
-                                variant="light"
-                                color="indigo"
-                                size="sm"
-                                aria-label="Colapsar asistente"
-                                title="Colapsar asistente"
-                                onClick={() => setSidebarCollapsed(true)}
-                            >
-                                <IconLayoutSidebarRightCollapse size={16} />
-                            </ActionIcon>
+                            <Group gap="xs" wrap="nowrap">
+                                <SegmentedControl
+                                    size="xs"
+                                    aria-label={t('locale.label')}
+                                    value={locale}
+                                    onChange={(value) =>
+                                        setLocale(value === 'en' ? 'en' : 'es')
+                                    }
+                                    data={[
+                                        { label: t('locale.es'), value: 'es' },
+                                        { label: t('locale.en'), value: 'en' },
+                                    ]}
+                                />
+                                <ActionIcon
+                                    variant="light"
+                                    color="indigo"
+                                    size="sm"
+                                    aria-label={t('rightSidebar.collapse')}
+                                    title={t('rightSidebar.collapse')}
+                                    onClick={() => setSidebarCollapsed(true)}
+                                >
+                                    <IconLayoutSidebarRightCollapse size={16} />
+                                </ActionIcon>
+                            </Group>
                         </Group>
                         <Stack gap="sm" className={classes.messagesPane}>
                             {persisted.length > 0 ? (
@@ -566,7 +583,10 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                             wrap="nowrap"
                                         >
                                             <Text fz="xs" fw={500} truncate>
-                                                {deriveChartTitle(line.preview)}
+                                                {deriveChartTitle(
+                                                    line.preview,
+                                                    locale,
+                                                )}
                                             </Text>
                                             <Button
                                                 size="compact-xs"
@@ -578,7 +598,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                                     })
                                                 }
                                             >
-                                                Fijar en pestaña
+                                                {t('chart.pinToTab')}
                                             </Button>
                                         </Group>
                                     </Paper>
@@ -607,10 +627,12 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                             }
                                         >
                                             {line.role === 'user'
-                                                ? 'Usuario'
+                                                ? t('rightSidebar.role.user')
                                                 : line.role === 'error'
-                                                  ? 'Error'
-                                                  : 'Asistente'}
+                                                  ? t('rightSidebar.role.error')
+                                                  : t(
+                                                        'rightSidebar.role.assistant',
+                                                    )}
                                         </Text>
                                         <Text fz="sm">{line.text}</Text>
                                     </Paper>
@@ -629,8 +651,8 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         </Stack>
                         <Group gap="sm" className={classes.promptBar}>
                             <TextInput
-                                aria-label="Escribe tu consulta"
-                                placeholder="Escribe tu consulta…"
+                                aria-label={t('rightSidebar.inputAria')}
+                                placeholder={t('rightSidebar.inputPlaceholder')}
                                 value={draft}
                                 flex={1}
                                 onChange={(event) =>
@@ -648,7 +670,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                                 onClick={() => void handleSend()}
                                 loading={streaming}
                             >
-                                Enviar
+                                {t('rightSidebar.send')}
                             </Button>
                         </Group>
                     </>

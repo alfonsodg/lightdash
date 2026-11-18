@@ -23,6 +23,7 @@ export type StreamInput = {
         allowedSchemas?: string[];
         dateZoom?: string;
         filters?: Record<string, unknown>;
+        locale?: 'es' | 'en';
         parameters?: Record<string, unknown>;
     } | null;
     threadUuid: string;

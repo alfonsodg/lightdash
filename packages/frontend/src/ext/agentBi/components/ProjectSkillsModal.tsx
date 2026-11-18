@@ -3,6 +3,7 @@ import { Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { useState, type FC } from 'react';
 import MantineModal from '../../../components/common/MantineModal';
 import { useAgentBiSkills } from '../hooks/useAgentBiSkills';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 
 type Props = {
     onClose: () => void;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 const ProjectSkillsModal: FC<Props> = ({ onClose, opened, projectUuid }) => {
+    const { t } = useAgentBiLocale();
     const { data: skills, create, remove } = useAgentBiSkills(projectUuid);
     const [slug, setSlug] = useState('');
     const [description, setDescription] = useState('');
@@ -28,25 +30,29 @@ const ProjectSkillsModal: FC<Props> = ({ onClose, opened, projectUuid }) => {
     };
 
     return (
-        <MantineModal opened={opened} onClose={onClose} title="Project skills">
+        <MantineModal
+            opened={opened}
+            onClose={onClose}
+            title={t('skills.modalTitle')}
+        >
             <Stack gap="md">
                 <Stack gap="sm">
                     <TextInput
-                        aria-label="Skill slug"
-                        label="Skill slug"
+                        aria-label={t('skills.slugLabel')}
+                        label={t('skills.slugLabel')}
                         value={slug}
                         onChange={(event) => setSlug(event.currentTarget.value)}
                     />
                     <TextInput
-                        aria-label="Skill description"
-                        label="Description"
+                        aria-label={t('skills.descriptionLabel')}
+                        label={t('skills.descriptionLabel')}
                         value={description}
                         onChange={(event) =>
                             setDescription(event.currentTarget.value)
                         }
                     />
                     <Button onClick={() => void handleCreate()}>
-                        Add skill
+                        {t('skills.addButton')}
                     </Button>
                 </Stack>
                 {(skills ?? []).map((skill) => (
@@ -60,7 +66,7 @@ const ProjectSkillsModal: FC<Props> = ({ onClose, opened, projectUuid }) => {
                             size="xs"
                             onClick={() => void remove(skill.skillUuid)}
                         >
-                            Delete
+                            {t('skills.deleteButton')}
                         </Button>
                     </Group>
                 ))}

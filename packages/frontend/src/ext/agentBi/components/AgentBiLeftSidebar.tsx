@@ -23,6 +23,7 @@ import { type FC } from 'react';
 import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
 import InlineErrorState from '../../../components/common/InlineErrorState';
 import { type AgentBiThread } from '../api';
+import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import classes from './AgentBiLeftSidebar.module.css';
 
 type Props = {
@@ -60,6 +61,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
     threadsError,
     threadTitle,
 }) => {
+    const { t } = useAgentBiLocale();
     if (collapsed) {
         return (
             <Stack
@@ -71,8 +73,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="light"
                     color="indigo"
                     size="lg"
-                    aria-label="Expandir espacios de trabajo"
-                    title="Expandir espacios de trabajo"
+                    aria-label={t('leftSidebar.expand')}
+                    title={t('leftSidebar.expand')}
                     onClick={onToggleCollapse}
                 >
                     <IconLayoutSidebarLeftExpand size={18} />
@@ -81,8 +83,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="subtle"
                     color="indigo"
                     size="md"
-                    aria-label="Abrir habilidades"
-                    title="Habilidades"
+                    aria-label={t('leftSidebar.skillsButton')}
+                    title={t('leftSidebar.skillsButton')}
                     onClick={onOpenSkills}
                 >
                     <IconBook2 size={16} />
@@ -91,8 +93,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="subtle"
                     color="teal"
                     size="md"
-                    aria-label="Abrir contexto vivo"
-                    title="Contexto vivo"
+                    aria-label={t('leftSidebar.liveContextButton')}
+                    title={t('leftSidebar.liveContextButton')}
                     onClick={onOpenLiveContext}
                 >
                     <IconCompass size={16} />
@@ -118,15 +120,15 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         <IconLayoutDashboard size={16} />
                     </ThemeIcon>
                     <Text fw={700} fz="md" c="indigo.9">
-                        Espacios de trabajo
+                        {t('leftSidebar.title')}
                     </Text>
                 </Group>
                 <ActionIcon
                     variant="light"
                     color="indigo"
                     size="sm"
-                    aria-label="Colapsar espacios de trabajo"
-                    title="Colapsar espacios de trabajo"
+                    aria-label={t('leftSidebar.collapse')}
+                    title={t('leftSidebar.collapse')}
                     onClick={onToggleCollapse}
                 >
                     <IconLayoutSidebarLeftCollapse size={16} />
@@ -137,8 +139,8 @@ const AgentBiLeftSidebar: FC<Props> = ({
                 <TextInput
                     size="xs"
                     flex={1}
-                    aria-label="Nombre del nuevo espacio"
-                    placeholder="Nombre del espacio"
+                    aria-label={t('leftSidebar.newWorkspaceLabel')}
+                    placeholder={t('leftSidebar.newWorkspacePlaceholder')}
                     value={threadTitle}
                     onChange={(event) =>
                         onChangeThreadTitle(event.currentTarget.value)
@@ -155,19 +157,21 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     variant="filled"
                     onClick={onCreateThread}
                 >
-                    Nuevo
+                    {t('leftSidebar.newButton')}
                 </Button>
             </Group>
 
             <Stack gap={6} className={classes.threadList}>
                 {isLoadingThreads ? (
-                    <EmptyStateLoader title="Cargando espacios…" />
+                    <EmptyStateLoader
+                        title={t('leftSidebar.loadingWorkspaces')}
+                    />
                 ) : threadsError !== null && threadsError !== undefined ? (
-                    <InlineErrorState message="No se pudieron cargar los espacios." />
+                    <InlineErrorState message={t('leftSidebar.loadError')} />
                 ) : threads.length === 0 ? (
                     <Paper variant="dotted" p="xs">
                         <Text c="dimmed" fz="xs" ta="center">
-                            Sin espacios aún.
+                            {t('leftSidebar.emptyWorkspaces')}
                         </Text>
                     </Paper>
                 ) : (
@@ -197,7 +201,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                                 }
                                 truncate
                             >
-                                {thread.title || 'Sin título'}
+                                {thread.title || t('leftSidebar.untitled')}
                             </Text>
                         </Paper>
                     ))
@@ -215,7 +219,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                             fw={700}
                             className={classes.sectionHeader}
                         >
-                            Esquemas de sesión
+                            {t('leftSidebar.sessionSchemas')}
                         </Text>
                     </Group>
                     <Badge
@@ -224,24 +228,24 @@ const AgentBiLeftSidebar: FC<Props> = ({
                         variant="light"
                     >
                         {selectedSchemas.length > 0
-                            ? `${selectedSchemas.length} activos`
-                            : 'Todos'}
+                            ? `${selectedSchemas.length} ${t('leftSidebar.schemasScopedSuffix')}`
+                            : t('leftSidebar.schemasAll')}
                     </Badge>
                 </Group>
                 <MultiSelect
                     size="xs"
-                    aria-label="Esquemas de sesión"
+                    aria-label={t('leftSidebar.sessionSchemas')}
                     placeholder={
                         availableSchemas.length > 0
-                            ? 'Selecciona esquemas para esta sesión'
-                            : 'Sin esquemas cargados'
+                            ? t('leftSidebar.schemasPlaceholder')
+                            : t('leftSidebar.schemasEmpty')
                     }
                     data={availableSchemas}
                     value={selectedSchemas}
                     onChange={onChangeSelectedSchemas}
                     searchable
                     clearable
-                    nothingFoundMessage="Sin coincidencias"
+                    nothingFoundMessage={t('leftSidebar.schemasNotFound')}
                 />
             </Stack>
 
@@ -255,7 +259,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     leftSection={<IconBook2 size={14} />}
                     onClick={onOpenSkills}
                 >
-                    Habilidades
+                    {t('leftSidebar.skillsButton')}
                 </Button>
                 <Button
                     size="xs"
@@ -264,7 +268,7 @@ const AgentBiLeftSidebar: FC<Props> = ({
                     leftSection={<IconCompass size={14} />}
                     onClick={onOpenLiveContext}
                 >
-                    Contexto vivo
+                    {t('leftSidebar.liveContextButton')}
                 </Button>
             </Group>
         </Stack>

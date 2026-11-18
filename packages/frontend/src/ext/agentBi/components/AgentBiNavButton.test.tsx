@@ -38,7 +38,7 @@ describe('AgentBiNavButton', () => {
             </QueryClientProvider>,
         );
         expect(
-            screen.getByRole('button', { name: /ask ai/i }),
+            screen.getByRole('button', { name: /asistente bi/i }),
         ).toBeInTheDocument();
     });
 });
