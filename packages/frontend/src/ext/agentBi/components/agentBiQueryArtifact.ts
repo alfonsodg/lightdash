@@ -4,12 +4,15 @@ import {
     DimensionType,
     FieldType,
     MetricType,
-    toResultRows,
     type ChartConfig,
-    type ChartFields,
     type RawResultRow,
 } from '@lightdash/common';
-import { renderChart, type RenderedChart } from '@lightdash/visualization';
+import {
+    renderChart,
+    toResultRows,
+    type ChartFields,
+    type RenderedChart,
+} from '@lightdash/visualization';
 import { getAgentBiString, type AgentBiLocale } from '../i18n/agentBiLocale';
 
 export type AgentBiQueryColumn = {
