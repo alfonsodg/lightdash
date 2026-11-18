@@ -121,9 +121,7 @@ describe('agent BI query artifacts', () => {
             });
             expect(output.kind).toBe('echarts');
             if (output.kind === 'echarts') {
-                expect(output.option.color).toEqual(
-                    AGENT_BI_PALETTES.emerald.colors,
-                );
+                expect(output.option.color).toEqual(AGENT_BI_PALETTES.emerald);
             }
         }
     });

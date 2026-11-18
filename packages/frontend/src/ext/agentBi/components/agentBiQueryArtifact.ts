@@ -270,6 +270,8 @@ const buildCustomEchartsOutput = (
 
     if (mode === 'funnel') {
         return {
+            chartType: ChartType.FUNNEL,
+            colorAssignments: {},
             kind: 'echarts',
             option: {
                 color: palette,
@@ -307,6 +309,8 @@ const buildCustomEchartsOutput = (
 
     if (mode === 'treemap') {
         return {
+            chartType: ChartType.TREEMAP,
+            colorAssignments: {},
             kind: 'echarts',
             option: {
                 color: palette,
@@ -372,6 +376,8 @@ const buildCustomEchartsOutput = (
                   }));
 
         return {
+            chartType: ChartType.CARTESIAN,
+            colorAssignments: {},
             kind: 'echarts',
             option: {
                 color: palette,
@@ -396,6 +402,8 @@ const buildCustomEchartsOutput = (
     const categories = items.map((i) => i.name);
     const values = items.map((i) => i.value);
     return {
+        chartType: ChartType.CARTESIAN,
+        colorAssignments: {},
         kind: 'echarts',
         option: {
             color: palette,
