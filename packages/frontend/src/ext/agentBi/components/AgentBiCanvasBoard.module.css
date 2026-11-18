@@ -4,7 +4,7 @@
 }
 
 .tabBar {
-    background: #ffffff;
+    background: var(--mantine-color-body);
     border: 1px solid var(--mantine-color-indigo-2);
     border-radius: var(--mantine-radius-md);
     padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
@@ -40,7 +40,7 @@
     overflow: auto;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: var(--mantine-color-body);
     border: 1px solid var(--mantine-color-indigo-2);
     border-top: 4px solid var(--mantine-color-indigo-6);
     box-shadow: 0 4px 14px rgba(29, 78, 216, 0.08);
@@ -60,4 +60,31 @@
 .dragHandle {
     cursor: grab;
     color: var(--mantine-color-indigo-7);
+}
+
+:global([data-mantine-color-scheme='dark']) .tabBar,
+:global([data-mantine-color-scheme='dark']) .card {
+    border-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .emptyCanvas {
+    background: linear-gradient(
+        180deg,
+        var(--mantine-color-dark-7) 0%,
+        var(--mantine-color-dark-6) 100%
+    );
+    border-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .dragBar {
+    background: linear-gradient(
+        90deg,
+        rgba(79, 70, 229, 0.2),
+        rgba(6, 182, 212, 0.14)
+    );
+    border-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .dragHandle {
+    color: var(--mantine-color-indigo-3);
 }
