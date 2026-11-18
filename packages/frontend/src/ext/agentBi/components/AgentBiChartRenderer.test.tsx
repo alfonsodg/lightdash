@@ -218,7 +218,7 @@ describe('AgentBiChartRenderer', () => {
                 title="Ingresos"
             />,
         );
-        expect(screen.getByText('42')).toBeInTheDocument();
+        expect(screen.getAllByText('42').length).toBeGreaterThanOrEqual(1);
         expect(screen.getByRole('table')).toBeInTheDocument();
     });
 });

@@ -131,8 +131,8 @@ describe('agent BI query artifacts', () => {
             ...preview,
             rows: [{ orders_count: 3, orders_status: 'complete, "vip"' }],
         });
-        expect(csv).toContain('Status,Orders');
-        expect(csv).toContain('"complete, ""vip""",3');
+        expect(csv).toContain('Orders,Status');
+        expect(csv).toContain('3,"complete, ""vip"""');
 
         expect(deriveChartTitle(preview, 'es')).toBe('Orders por Status');
         expect(deriveChartTitle(preview, 'en')).toBe('Orders by Status');

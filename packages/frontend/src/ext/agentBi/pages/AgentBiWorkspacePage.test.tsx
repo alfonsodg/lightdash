@@ -96,6 +96,7 @@ describe('AgentBiWorkspacePage', () => {
                         activeTab: 'Overview',
                         dateZoom: 'month',
                         filters,
+                        locale: 'es',
                         parameters: { currency: 'EUR' },
                     },
                     userText: 'What changed?',
@@ -287,7 +288,7 @@ describe('AgentBiWorkspacePage', () => {
         expect(screen.getByText('Espacios de trabajo')).toBeInTheDocument();
         fireEvent.click(screen.getByText('EN'));
         expect(screen.getByText('Workspaces')).toBeInTheDocument();
-        expect(screen.getByText('Session schemas')).toBeInTheDocument();
+        expect(screen.getByText('Session Schemas')).toBeInTheDocument();
         expect(screen.getByLabelText('Ask your question')).toBeInTheDocument();
     });
 });

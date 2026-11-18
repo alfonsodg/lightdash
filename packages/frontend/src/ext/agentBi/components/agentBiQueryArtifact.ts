@@ -89,15 +89,23 @@ export const AGENT_BI_PALETTES: Record<AgentBiPaletteKey, string[]> = {
 };
 
 const rawPreviewValue = (cell: unknown): unknown => {
+    let candidate = cell;
+    if (typeof candidate === 'string' && candidate.startsWith('{')) {
+        try {
+            candidate = JSON.parse(candidate) as unknown;
+        } catch {
+            return cell;
+        }
+    }
     if (
-        typeof cell === 'object' &&
-        cell !== null &&
-        'value' in cell &&
-        typeof (cell as { value: unknown }).value === 'object' &&
-        (cell as { value: unknown }).value !== null &&
-        'raw' in ((cell as { value: Record<string, unknown> }).value ?? {})
+        typeof candidate === 'object' &&
+        candidate !== null &&
+        'value' in candidate &&
+        typeof (candidate as { value: unknown }).value === 'object' &&
+        (candidate as { value: unknown }).value !== null &&
+        'raw' in ((candidate as { value: Record<string, unknown> }).value ?? {})
     ) {
-        return (cell as { value: { raw: unknown } }).value.raw;
+        return (candidate as { value: { raw: unknown } }).value.raw;
     }
     return cell;
 };
@@ -696,7 +704,7 @@ export const buildAgentBiQueryOutput = (
         chartConfig = { type: ChartType.TABLE };
     }
 
-    return renderChart(
+    const rendered = renderChart(
         {
             chartConfig,
             tableConfig: { columnOrder: Object.keys(fields) },
@@ -708,6 +716,16 @@ export const buildAgentBiQueryOutput = (
         },
         { colors: { palette } },
     );
+    if (rendered.kind === 'echarts') {
+        return {
+            ...rendered,
+            option: {
+                ...rendered.option,
+                color: palette,
+            },
+        };
+    }
+    return rendered;
 };
 
 export const exportPreviewToCsv = (preview: AgentBiQueryPreview): string => {
