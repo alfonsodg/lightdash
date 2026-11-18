@@ -289,6 +289,6 @@ describe('AgentBiWorkspacePage', () => {
         fireEvent.click(screen.getByText('EN'));
         expect(screen.getByText('Workspaces')).toBeInTheDocument();
         expect(screen.getByText('Session Schemas')).toBeInTheDocument();
-        expect(screen.getByLabelText('Ask your question')).toBeInTheDocument();
+        expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
     });
 });
