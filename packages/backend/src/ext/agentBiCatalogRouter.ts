@@ -1,8 +1,8 @@
 import {
     FeatureFlags,
-    isExploreError,
     NotFoundError,
     ParameterError,
+    QueryExecutionContext,
 } from '@lightdash/common';
 import express, { type Request, type Router } from 'express';
 import { z } from 'zod';
@@ -82,7 +82,7 @@ export const createCatalogExtRouter = (): Router => {
                     false,
                 );
                 const validNames = summaries
-                    .filter((item) => !isExploreError(item))
+                    .filter((item) => !('errors' in item))
                     .map((item) => item.name)
                     .slice(0, 40);
 
@@ -181,6 +181,8 @@ export const createCatalogExtRouter = (): Router => {
                     .getProjectService()
                     .runMetricQuery({
                         account: req.account!,
+                        chartUuid: undefined,
+                        context: QueryExecutionContext.EXPLORE,
                         csvLimit: null,
                         exploreName,
                         metricQuery: {
@@ -193,6 +195,7 @@ export const createCatalogExtRouter = (): Router => {
                             tableCalculations: [],
                         },
                         projectUuid,
+                        queryTags: {},
                     });
 
                 const columns: Record<
@@ -206,7 +209,10 @@ export const createCatalogExtRouter = (): Router => {
                 for (const [fieldId, field] of Object.entries(result.fields)) {
                     columns[fieldId] = {
                         format:
-                            'format' in field ? (field.format ?? null) : null,
+                            'format' in field &&
+                            typeof field.format === 'string'
+                                ? field.format
+                                : null,
                         label: 'label' in field ? field.label : fieldId,
                         type: 'type' in field ? String(field.type) : null,
                     };
