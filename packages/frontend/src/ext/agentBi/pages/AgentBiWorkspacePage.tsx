@@ -501,11 +501,32 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             targetThread = created.threadUuid;
             setSelectedThread(targetThread);
         }
+        const compactRows = card.preview.rows.slice(0, 15).map((row) =>
+            Object.fromEntries(
+                Object.entries(row).map(([k, v]) => {
+                    if (
+                        typeof v === 'object' &&
+                        v !== null &&
+                        'value' in v &&
+                        typeof (v as { value?: unknown }).value === 'object' &&
+                        (v as { value?: unknown }).value !== null
+                    ) {
+                        const inner = (
+                            v as {
+                                value: { formatted?: unknown; raw?: unknown };
+                            }
+                        ).value;
+                        return [k, inner.formatted ?? inner.raw ?? v];
+                    }
+                    return [k, v];
+                }),
+            ),
+        );
         const promptText = followUp
-            ? `${followUp}\n\n[Context card: ${card.title ?? card.id}; rows=${JSON.stringify(card.preview.rows.slice(0, 12))}]`
+            ? `${followUp}\n\n[No uses herramientas externas ni consultes el catálogo; responde directamente con los datos de la tarjeta "${card.title ?? card.id}": ${JSON.stringify(compactRows.slice(0, 12))}]`
             : locale === 'es'
-              ? `Explica de forma ejecutiva qué muestra "${card.title ?? deriveChartTitle(card.preview, locale)}", destaca tendencias, máximos, mínimos y posibles cuellos de botella con estos datos reales: ${JSON.stringify(card.preview.rows.slice(0, 15))}`
-              : `Provide an executive explanation of "${card.title ?? deriveChartTitle(card.preview, locale)}", highlighting trends, highs, lows, and potential bottlenecks from these rows: ${JSON.stringify(card.preview.rows.slice(0, 15))}`;
+              ? `No uses herramientas externas ni consultes el catálogo; analiza directamente los datos proporcionados. Explica de forma ejecutiva qué muestra "${card.title ?? deriveChartTitle(card.preview, locale)}", destaca tendencias, máximos, mínimos y posibles cuellos de botella con estos datos reales: ${JSON.stringify(compactRows)}`
+              : `Do not call any tools or query the catalog; analyze the provided data directly. Provide an executive explanation of "${card.title ?? deriveChartTitle(card.preview, locale)}", highlighting trends, highs, lows, and potential bottlenecks from these rows: ${JSON.stringify(compactRows)}`;
 
         if (followUp) {
             setExplainerByCard((prev) => ({
@@ -521,6 +542,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
             }));
         }
 
+        const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         setExplaining(true);
         try {
             await streamThreadTurn(
@@ -537,17 +559,51 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         event.data !== null &&
                         'text' in event.data
                     ) {
-                        const text = String(
+                        const delta = String(
                             (event.data as { text: unknown }).text,
+                        );
+                        setExplainerByCard((prev) => {
+                            const existing = prev[card.id] ?? [];
+                            const idx = existing.findIndex(
+                                (m) => m.id === assistantMsgId,
+                            );
+                            if (idx >= 0) {
+                                const updated = [...existing];
+                                updated[idx] = {
+                                    ...updated[idx],
+                                    text: `${updated[idx].text}${delta}`,
+                                };
+                                return { ...prev, [card.id]: updated };
+                            }
+                            return {
+                                ...prev,
+                                [card.id]: [
+                                    ...existing,
+                                    {
+                                        id: assistantMsgId,
+                                        role: 'assistant',
+                                        text: delta,
+                                    },
+                                ],
+                            };
+                        });
+                    } else if (
+                        event.type === 'error' &&
+                        typeof event.data === 'object' &&
+                        event.data !== null &&
+                        'message' in event.data
+                    ) {
+                        const errMsg = String(
+                            (event.data as { message: unknown }).message,
                         );
                         setExplainerByCard((prev) => ({
                             ...prev,
                             [card.id]: [
                                 ...(prev[card.id] ?? []),
                                 {
-                                    id: `a-${Date.now()}-${Math.random()}`,
+                                    id: assistantMsgId,
                                     role: 'assistant',
-                                    text,
+                                    text: errMsg,
                                 },
                             ],
                         }));
