@@ -495,9 +495,9 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
         if (explaining) return;
         let targetThread = activeThread;
         if (targetThread === null) {
-            const created = await create({
-                title: card.title ?? t('focused.explainerTitle'),
-            });
+            const created = await create(
+                card.title ?? t('focused.explainerTitle'),
+            );
             targetThread = created.threadUuid;
             setSelectedThread(targetThread);
         }
