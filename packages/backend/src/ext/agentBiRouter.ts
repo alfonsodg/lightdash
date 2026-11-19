@@ -4,6 +4,7 @@ import {
     allowApiKeyAuthentication,
     isAuthenticated,
 } from '../controllers/authentication';
+import { createCatalogExtRouter } from './agentBiCatalogRouter';
 import {
     evaluatePreflightCapabilities,
     listPreflightCapabilityNames,
@@ -26,6 +27,8 @@ agentBiRouter.use(
 agentBiRouter.use('/projects/:projectUuid/threads', createThreadsExtRouter());
 
 agentBiRouter.use('/projects/:projectUuid/skills', createSkillsExtRouter());
+
+agentBiRouter.use('/projects/:projectUuid', createCatalogExtRouter());
 
 agentBiRouter.get(
     '/projects/:projectUuid/schemas',

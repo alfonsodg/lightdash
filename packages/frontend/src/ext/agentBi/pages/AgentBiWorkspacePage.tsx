@@ -13,6 +13,7 @@ import {
 import {
     IconLayoutSidebarRightCollapse,
     IconLayoutSidebarRightExpand,
+    IconPlus,
     IconSparkles,
 } from '@tabler/icons-react';
 import { useEffect, useState, type FC } from 'react';
@@ -27,7 +28,15 @@ import AgentBiCanvasBoard, {
 import AgentBiContextualDrawer, {
     type AgentBiDrawerContext,
 } from '../components/AgentBiContextualDrawer';
+import AgentBiFocusedView, {
+    type ExplainerMessage,
+    type FocusedCardTarget,
+} from '../components/AgentBiFocusedView';
 import AgentBiLeftSidebar from '../components/AgentBiLeftSidebar';
+import AgentBiMetricBuilderModal from '../components/AgentBiMetricBuilderModal';
+import AgentBiOverviewBoard, {
+    type OverviewCardItem,
+} from '../components/AgentBiOverviewBoard';
 import {
     deriveChartTitle,
     parseAgentBiQueryPreview,
@@ -121,6 +130,17 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const [pending, setPending] = useState<PendingApproval | null>(null);
     const [streaming, setStreaming] = useState(false);
     const [skillsOpen, setSkillsOpen] = useState(false);
+    const [builderOpen, setBuilderOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<
+        'overview' | 'focused' | 'workspace'
+    >('workspace');
+    const [focusedCard, setFocusedCard] = useState<FocusedCardTarget | null>(
+        null,
+    );
+    const [explainerByCard, setExplainerByCard] = useState<
+        Record<string, ExplainerMessage[]>
+    >({});
+    const [explaining, setExplaining] = useState(false);
     const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -457,236 +477,441 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
 
     const persisted = (storedMessages ?? []).map((message) => message.content);
 
+    const handleFocusCard = (card: OverviewCardItem) => {
+        setFocusedCard({
+            id: card.id,
+            metadata: card.metadata,
+            mode: card.mode,
+            preview: card.preview,
+            title: card.title,
+        });
+        setViewMode('focused');
+    };
+
+    const handleExplainCard = async (
+        card: FocusedCardTarget,
+        followUp?: string,
+    ) => {
+        if (activeThread === null || explaining) return;
+        const promptText = followUp
+            ? `${followUp}\n\n[Context card: ${card.title ?? card.id}; rows=${JSON.stringify(card.preview.rows.slice(0, 12))}]`
+            : locale === 'es'
+              ? `Explica de forma ejecutiva qué muestra "${card.title ?? deriveChartTitle(card.preview, locale)}", destaca tendencias, máximos, mínimos y posibles cuellos de botella con estos datos reales: ${JSON.stringify(card.preview.rows.slice(0, 15))}`
+              : `Provide an executive explanation of "${card.title ?? deriveChartTitle(card.preview, locale)}", highlighting trends, highs, lows, and potential bottlenecks from these rows: ${JSON.stringify(card.preview.rows.slice(0, 15))}`;
+
+        if (followUp) {
+            setExplainerByCard((prev) => ({
+                ...prev,
+                [card.id]: [
+                    ...(prev[card.id] ?? []),
+                    {
+                        id: `u-${Date.now()}`,
+                        role: 'user',
+                        text: followUp,
+                    },
+                ],
+            }));
+        }
+
+        setExplaining(true);
+        try {
+            await streamThreadTurn(
+                {
+                    projectUuid,
+                    runtimeOverrides: { locale },
+                    threadUuid: activeThread,
+                    userText: promptText,
+                },
+                (event) => {
+                    if (
+                        event.type === 'text_delta' &&
+                        typeof event.data === 'object' &&
+                        event.data !== null &&
+                        'text' in event.data
+                    ) {
+                        const text = String(
+                            (event.data as { text: unknown }).text,
+                        );
+                        setExplainerByCard((prev) => ({
+                            ...prev,
+                            [card.id]: [
+                                ...(prev[card.id] ?? []),
+                                {
+                                    id: `a-${Date.now()}-${Math.random()}`,
+                                    role: 'assistant',
+                                    text,
+                                },
+                            ],
+                        }));
+                    }
+                },
+            );
+        } finally {
+            setExplaining(false);
+        }
+    };
+
     return (
-        <Group
-            align="stretch"
-            className={classes.layout}
-            gap="md"
-            p="md"
-            wrap="nowrap"
-        >
-            <AgentBiLeftSidebar
-                activeThread={activeThread}
-                availableSchemas={availableSchemas}
-                collapsed={leftSidebarCollapsed}
-                isLoadingThreads={isLoading}
-                onChangeSelectedSchemas={handleChangeSelectedSchemas}
-                onChangeThreadTitle={setTitle}
-                onCreateThread={() => void handleCreate()}
-                onOpenLiveContext={() => setDrawerOpen(true)}
-                onOpenSkills={() => setSkillsOpen(true)}
-                onSelectThread={(threadUuid) => {
-                    setSelectedThread(threadUuid);
-                    setLines([]);
-                }}
-                onToggleCollapse={() =>
-                    setLeftSidebarCollapsed((prev) => !prev)
-                }
-                selectedSchemas={selectedSchemas}
-                threads={threads ?? []}
-                threadsError={error}
-                threadTitle={title}
-            />
-            <Stack gap="md" className={classes.canvas}>
-                <AgentBiCanvasBoard
-                    tabs={tabs}
-                    activeTabId={activeTabId}
-                    onSelectTab={setActiveTabId}
-                    onAddTab={handleAddTab}
-                    onRemoveTab={handleRemoveTab}
-                    onRemoveCard={handleRemoveCard}
-                    onUpdateCardMode={handleUpdateCardMode}
-                    onUpdateCardMetadata={handleUpdateCardMetadata}
-                    onUpdateLayouts={handleUpdateLayouts}
-                />
-            </Stack>
-            <Stack
-                gap="md"
-                data-testid="agent-bi-right-sidebar"
-                className={
-                    sidebarCollapsed
-                        ? classes.sidebarCollapsed
-                        : classes.sidebar
-                }
+        <Stack gap={0} className={classes.outerShell}>
+            <Group
+                justify="space-between"
+                align="center"
+                wrap="wrap"
+                gap="sm"
+                className={classes.topBar}
             >
-                {sidebarCollapsed ? (
-                    <ActionIcon
+                <SegmentedControl
+                    size="xs"
+                    color="indigo"
+                    aria-label={t('viewMode.aria')}
+                    value={viewMode}
+                    onChange={(val) =>
+                        setViewMode(
+                            (val as 'overview' | 'focused' | 'workspace') ??
+                                'workspace',
+                        )
+                    }
+                    data={[
+                        {
+                            label: t('viewMode.overview'),
+                            value: 'overview',
+                        },
+                        {
+                            label: t('viewMode.focused'),
+                            value: 'focused',
+                        },
+                        {
+                            label: t('viewMode.workspace'),
+                            value: 'workspace',
+                        },
+                    ]}
+                />
+                <Group gap="xs" wrap="nowrap">
+                    <Button
+                        size="xs"
+                        color="teal"
                         variant="light"
-                        color="indigo"
-                        size="lg"
-                        aria-label={t('rightSidebar.expand')}
-                        title={t('rightSidebar.expand')}
-                        onClick={() => setSidebarCollapsed(false)}
+                        leftSection={<IconPlus size={14} />}
+                        onClick={() => setBuilderOpen(true)}
                     >
-                        <IconLayoutSidebarRightExpand size={18} />
-                    </ActionIcon>
-                ) : (
-                    <>
-                        <Group justify="space-between" wrap="nowrap">
-                            <Group gap="xs" wrap="nowrap">
-                                <ThemeIcon
-                                    variant="gradient"
-                                    gradient={{
-                                        from: 'indigo',
-                                        to: 'cyan',
-                                        deg: 135,
-                                    }}
-                                    size="md"
-                                    radius="md"
-                                >
-                                    <IconSparkles size={16} />
-                                </ThemeIcon>
-                                <Text fw={700} fz="lg" c="indigo.9">
-                                    {t('rightSidebar.title')}
-                                </Text>
-                            </Group>
-                            <Group gap="xs" wrap="nowrap">
-                                <SegmentedControl
-                                    size="xs"
-                                    aria-label={t('locale.label')}
-                                    value={locale}
-                                    onChange={(value) =>
-                                        setLocale(value === 'en' ? 'en' : 'es')
-                                    }
-                                    data={[
-                                        { label: t('locale.es'), value: 'es' },
-                                        { label: t('locale.en'), value: 'en' },
-                                    ]}
-                                />
-                                <ActionIcon
-                                    variant="light"
-                                    color="indigo"
-                                    size="sm"
-                                    aria-label={t('rightSidebar.collapse')}
-                                    title={t('rightSidebar.collapse')}
-                                    onClick={() => setSidebarCollapsed(true)}
-                                >
-                                    <IconLayoutSidebarRightCollapse size={16} />
-                                </ActionIcon>
-                            </Group>
-                        </Group>
-                        <Stack gap="sm" className={classes.messagesPane}>
-                            {persisted.length > 0 ? (
-                                <Stack gap="xs">
-                                    {persisted.map((content, index) => (
-                                        <Paper key={index} p="sm" withBorder>
-                                            <Text fz="sm">{content}</Text>
-                                        </Paper>
-                                    ))}
-                                </Stack>
-                            ) : null}
-                            {lines.map((line) =>
-                                line.kind === 'query-artifact' ? (
-                                    <Paper key={line.id} p="xs" withBorder>
-                                        <Group
-                                            justify="space-between"
-                                            wrap="nowrap"
+                        {t('builder.openButton')}
+                    </Button>
+                </Group>
+            </Group>
+
+            {viewMode === 'overview' ? (
+                <Stack p="md" className={classes.canvas}>
+                    <AgentBiOverviewBoard
+                        projectUuid={projectUuid}
+                        onFocusCard={handleFocusCard}
+                        onPinCard={(card) => {
+                            pinCardToTab({
+                                metadata: card.metadata,
+                                mode: card.mode,
+                                preview: card.preview,
+                            });
+                            setViewMode('workspace');
+                        }}
+                    />
+                </Stack>
+            ) : viewMode === 'focused' ? (
+                <Stack p="md" className={classes.canvas}>
+                    <AgentBiFocusedView
+                        explaining={explaining}
+                        focusedCard={focusedCard}
+                        messages={
+                            focusedCard
+                                ? (explainerByCard[focusedCard.id] ?? [])
+                                : []
+                        }
+                        onBackToOverview={() => setViewMode('overview')}
+                        onExplainCard={(card, followUp) =>
+                            void handleExplainCard(card, followUp)
+                        }
+                    />
+                </Stack>
+            ) : (
+                <Group
+                    align="stretch"
+                    className={classes.layout}
+                    gap="md"
+                    p="md"
+                    wrap="nowrap"
+                >
+                    <AgentBiLeftSidebar
+                        activeThread={activeThread}
+                        availableSchemas={availableSchemas}
+                        collapsed={leftSidebarCollapsed}
+                        isLoadingThreads={isLoading}
+                        onChangeSelectedSchemas={handleChangeSelectedSchemas}
+                        onChangeThreadTitle={setTitle}
+                        onCreateThread={() => void handleCreate()}
+                        onOpenLiveContext={() => setDrawerOpen(true)}
+                        onOpenSkills={() => setSkillsOpen(true)}
+                        onSelectThread={(threadUuid) => {
+                            setSelectedThread(threadUuid);
+                            setLines([]);
+                        }}
+                        onToggleCollapse={() =>
+                            setLeftSidebarCollapsed((prev) => !prev)
+                        }
+                        selectedSchemas={selectedSchemas}
+                        threads={threads ?? []}
+                        threadsError={error}
+                        threadTitle={title}
+                    />
+                    <Stack gap="md" className={classes.canvas}>
+                        <AgentBiCanvasBoard
+                            tabs={tabs}
+                            activeTabId={activeTabId}
+                            onSelectTab={setActiveTabId}
+                            onAddTab={handleAddTab}
+                            onRemoveTab={handleRemoveTab}
+                            onRemoveCard={handleRemoveCard}
+                            onUpdateCardMode={handleUpdateCardMode}
+                            onUpdateCardMetadata={handleUpdateCardMetadata}
+                            onUpdateLayouts={handleUpdateLayouts}
+                        />
+                    </Stack>
+                    <Stack
+                        gap="md"
+                        data-testid="agent-bi-right-sidebar"
+                        className={
+                            sidebarCollapsed
+                                ? classes.sidebarCollapsed
+                                : classes.sidebar
+                        }
+                    >
+                        {sidebarCollapsed ? (
+                            <ActionIcon
+                                variant="light"
+                                color="indigo"
+                                size="lg"
+                                aria-label={t('rightSidebar.expand')}
+                                title={t('rightSidebar.expand')}
+                                onClick={() => setSidebarCollapsed(false)}
+                            >
+                                <IconLayoutSidebarRightExpand size={18} />
+                            </ActionIcon>
+                        ) : (
+                            <>
+                                <Group justify="space-between" wrap="nowrap">
+                                    <Group gap="xs" wrap="nowrap">
+                                        <ThemeIcon
+                                            variant="gradient"
+                                            gradient={{
+                                                from: 'indigo',
+                                                to: 'cyan',
+                                                deg: 135,
+                                            }}
+                                            size="md"
+                                            radius="md"
                                         >
-                                            <Text fz="xs" fw={500} truncate>
-                                                {deriveChartTitle(
-                                                    line.preview,
-                                                    locale,
-                                                )}
-                                            </Text>
-                                            <Button
-                                                size="compact-xs"
-                                                color="teal"
-                                                variant="light"
-                                                onClick={() =>
-                                                    pinCardToTab({
-                                                        preview: line.preview,
-                                                    })
-                                                }
-                                            >
-                                                {t('chart.pinToTab')}
-                                            </Button>
-                                        </Group>
-                                    </Paper>
-                                ) : (
-                                    <Paper
-                                        key={line.id}
-                                        p="sm"
-                                        withBorder
-                                        className={
-                                            line.role === 'user'
-                                                ? classes.msgUser
-                                                : line.role === 'error'
-                                                  ? classes.msgError
-                                                  : classes.msgAssistant
-                                        }
-                                    >
-                                        <Text
-                                            fz="xs"
-                                            fw={700}
-                                            c={
-                                                line.role === 'user'
-                                                    ? 'indigo.7'
-                                                    : line.role === 'error'
-                                                      ? 'red.7'
-                                                      : 'blue.7'
+                                            <IconSparkles size={16} />
+                                        </ThemeIcon>
+                                        <Text fw={700} fz="lg" c="indigo.9">
+                                            {t('rightSidebar.title')}
+                                        </Text>
+                                    </Group>
+                                    <Group gap="xs" wrap="nowrap">
+                                        <SegmentedControl
+                                            size="xs"
+                                            aria-label={t('locale.label')}
+                                            value={locale}
+                                            onChange={(value) =>
+                                                setLocale(
+                                                    value === 'en'
+                                                        ? 'en'
+                                                        : 'es',
+                                                )
+                                            }
+                                            data={[
+                                                {
+                                                    label: t('locale.es'),
+                                                    value: 'es',
+                                                },
+                                                {
+                                                    label: t('locale.en'),
+                                                    value: 'en',
+                                                },
+                                            ]}
+                                        />
+                                        <ActionIcon
+                                            variant="light"
+                                            color="indigo"
+                                            size="sm"
+                                            aria-label={t(
+                                                'rightSidebar.collapse',
+                                            )}
+                                            title={t('rightSidebar.collapse')}
+                                            onClick={() =>
+                                                setSidebarCollapsed(true)
                                             }
                                         >
-                                            {line.role === 'user'
-                                                ? t('rightSidebar.role.user')
-                                                : line.role === 'error'
-                                                  ? t('rightSidebar.role.error')
-                                                  : t(
-                                                        'rightSidebar.role.assistant',
-                                                    )}
-                                        </Text>
-                                        <Text fz="sm">{line.text}</Text>
-                                    </Paper>
-                                ),
-                            )}
-                            {pending !== null ? (
-                                <AgentBiApprovalCard
-                                    approvalUuid={pending.approvalUuid}
-                                    input={pending.input}
-                                    onDecide={(decision) =>
-                                        void handleDecide(decision)
-                                    }
-                                    tool={pending.tool}
-                                />
-                            ) : null}
-                        </Stack>
-                        <Group gap="sm" className={classes.promptBar}>
-                            <TextInput
-                                aria-label={t('rightSidebar.inputAria')}
-                                placeholder={t('rightSidebar.inputPlaceholder')}
-                                value={draft}
-                                flex={1}
-                                onChange={(event) =>
-                                    setDraft(event.currentTarget.value)
-                                }
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                        void handleSend();
-                                    }
-                                }}
-                            />
-                            <Button
-                                color="indigo"
-                                variant="filled"
-                                onClick={() => void handleSend()}
-                                loading={streaming}
-                            >
-                                {t('rightSidebar.send')}
-                            </Button>
-                        </Group>
-                    </>
-                )}
-            </Stack>
+                                            <IconLayoutSidebarRightCollapse
+                                                size={16}
+                                            />
+                                        </ActionIcon>
+                                    </Group>
+                                </Group>
+                                <Stack
+                                    gap="sm"
+                                    className={classes.messagesPane}
+                                >
+                                    {persisted.length > 0 ? (
+                                        <Stack gap="xs">
+                                            {persisted.map((content, index) => (
+                                                <Paper
+                                                    key={index}
+                                                    p="sm"
+                                                    withBorder
+                                                >
+                                                    <Text fz="sm">
+                                                        {content}
+                                                    </Text>
+                                                </Paper>
+                                            ))}
+                                        </Stack>
+                                    ) : null}
+                                    {lines.map((line) =>
+                                        line.kind === 'query-artifact' ? (
+                                            <Paper
+                                                key={line.id}
+                                                p="xs"
+                                                withBorder
+                                            >
+                                                <Group
+                                                    justify="space-between"
+                                                    wrap="nowrap"
+                                                >
+                                                    <Text
+                                                        fz="xs"
+                                                        fw={500}
+                                                        truncate
+                                                    >
+                                                        {deriveChartTitle(
+                                                            line.preview,
+                                                            locale,
+                                                        )}
+                                                    </Text>
+                                                    <Button
+                                                        size="compact-xs"
+                                                        color="teal"
+                                                        variant="light"
+                                                        onClick={() =>
+                                                            pinCardToTab({
+                                                                preview:
+                                                                    line.preview,
+                                                            })
+                                                        }
+                                                    >
+                                                        {t('chart.pinToTab')}
+                                                    </Button>
+                                                </Group>
+                                            </Paper>
+                                        ) : (
+                                            <Paper
+                                                key={line.id}
+                                                p="sm"
+                                                withBorder
+                                                className={
+                                                    line.role === 'user'
+                                                        ? classes.msgUser
+                                                        : line.role === 'error'
+                                                          ? classes.msgError
+                                                          : classes.msgAssistant
+                                                }
+                                            >
+                                                <Text
+                                                    fz="xs"
+                                                    fw={700}
+                                                    c={
+                                                        line.role === 'user'
+                                                            ? 'indigo.7'
+                                                            : line.role ===
+                                                                'error'
+                                                              ? 'red.7'
+                                                              : 'blue.7'
+                                                    }
+                                                >
+                                                    {line.role === 'user'
+                                                        ? t(
+                                                              'rightSidebar.role.user',
+                                                          )
+                                                        : line.role === 'error'
+                                                          ? t(
+                                                                'rightSidebar.role.error',
+                                                            )
+                                                          : t(
+                                                                'rightSidebar.role.assistant',
+                                                            )}
+                                                </Text>
+                                                <Text fz="sm">{line.text}</Text>
+                                            </Paper>
+                                        ),
+                                    )}
+                                    {pending !== null ? (
+                                        <AgentBiApprovalCard
+                                            approvalUuid={pending.approvalUuid}
+                                            input={pending.input}
+                                            onDecide={(decision) =>
+                                                void handleDecide(decision)
+                                            }
+                                            tool={pending.tool}
+                                        />
+                                    ) : null}
+                                </Stack>
+                                <Group gap="sm" className={classes.promptBar}>
+                                    <TextInput
+                                        aria-label={t('rightSidebar.inputAria')}
+                                        placeholder={t(
+                                            'rightSidebar.inputPlaceholder',
+                                        )}
+                                        value={draft}
+                                        flex={1}
+                                        onChange={(event) =>
+                                            setDraft(event.currentTarget.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                void handleSend();
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        color="indigo"
+                                        variant="filled"
+                                        onClick={() => void handleSend()}
+                                        loading={streaming}
+                                    >
+                                        {t('rightSidebar.send')}
+                                    </Button>
+                                </Group>
+                            </>
+                        )}
+                    </Stack>
+                </Group>
+            )}
             <ProjectSkillsModal
                 opened={skillsOpen}
                 onClose={() => setSkillsOpen(false)}
                 projectUuid={projectUuid}
+            />
+            <AgentBiMetricBuilderModal
+                opened={builderOpen}
+                onClose={() => setBuilderOpen(false)}
+                projectUuid={projectUuid}
+                onPinMetric={(payload) => {
+                    pinCardToTab(payload);
+                    setViewMode('workspace');
+                }}
             />
             <AgentBiContextualDrawer
                 opened={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
                 context={dashboardContext}
             />
-        </Group>
+        </Stack>
     );
 };
 

@@ -33,7 +33,18 @@ vi.mock('../components/AgentBiChartRenderer', () => ({
 
 vi.mock('../api', () => ({
     decideApproval: vi.fn(async () => {}),
+    fetchMetricPreview: vi.fn(async () => null),
+    fetchProjectExplores: vi.fn(async () => []),
     fetchProjectSchemas: vi.fn(async () => ['cosapup', 'analitica']),
+}));
+
+vi.mock('../hooks/useProjectExplores', () => ({
+    useProjectExplores: () => ({
+        data: [],
+        error: null,
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
 }));
 
 vi.mock('../hooks/useAgentBiStream', () => ({
@@ -290,5 +301,34 @@ describe('AgentBiWorkspacePage', () => {
         expect(screen.getByText('Workspaces')).toBeInTheDocument();
         expect(screen.getByText('Session Schemas')).toBeInTheDocument();
         expect(screen.getByLabelText('Ask a question')).toBeInTheDocument();
+    });
+
+    it('switches between Vista General, Vista Enfocada, and Espacio de Métricas and opens metric builder', () => {
+        localStorage.clear();
+        render(
+            <MantineBaseProvider env="test">
+                <MemoryRouter>
+                    <AgentBiLocaleProvider>
+                        <AgentBiWorkspacePage />
+                    </AgentBiLocaleProvider>
+                </MemoryRouter>
+            </MantineBaseProvider>,
+        );
+
+        fireEvent.click(screen.getByText('Vista General'));
+        expect(
+            screen.getByTestId('agent-bi-overview-board'),
+        ).toBeInTheDocument();
+        expect(screen.getByText('Seguimiento')).toBeInTheDocument();
+        expect(screen.getByText('Tareo HH')).toBeInTheDocument();
+        expect(screen.getByText('Rendimiento')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Vista Enfocada'));
+        expect(screen.getByTestId('agent-bi-focused-view')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Crear métrica'));
+        expect(
+            screen.getByText('Crear métrica personalizada'),
+        ).toBeInTheDocument();
     });
 });

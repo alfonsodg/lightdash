@@ -1,8 +1,20 @@
-.layout {
+.outerShell {
     width: 100%;
     min-width: 0;
     min-height: calc(100vh - 52px);
     background: #f1f5fb;
+}
+
+.topBar {
+    background: var(--mantine-color-body);
+    border-bottom: 1px solid var(--mantine-color-indigo-2);
+    padding: var(--mantine-spacing-xs) var(--mantine-spacing-md);
+}
+
+.layout {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 0;
 }
 
 .canvas {
@@ -87,8 +99,14 @@
     }
 }
 
+:global([data-mantine-color-scheme='dark']) .outerShell,
 :global([data-mantine-color-scheme='dark']) .layout {
     background: var(--mantine-color-dark-8);
+}
+
+:global([data-mantine-color-scheme='dark']) .topBar {
+    background: var(--mantine-color-dark-7);
+    border-bottom-color: var(--mantine-color-dark-4);
 }
 
 :global([data-mantine-color-scheme='dark']) .sidebar,

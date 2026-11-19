@@ -120,6 +120,61 @@ export const esMessages = {
     'locale.label': 'Idioma',
     'locale.es': 'ES',
     'locale.en': 'EN',
+
+    // Top-level 3-view navigation (#33, #34, #35)
+    'viewMode.aria': 'Modo de vista BI',
+    'viewMode.overview': 'Vista General',
+    'viewMode.focused': 'Vista Enfocada',
+    'viewMode.workspace': 'Espacio de Métricas',
+
+    // Vista General (#33)
+    'overview.title': 'Vista General Ejecutiva',
+    'overview.subtitle':
+        'Panel consolidado basado en los modelos reales del proyecto',
+    'overview.refresh': 'Actualizar datos',
+    'overview.searchPlaceholder': 'Filtrar por modelo o título…',
+    'overview.exploreFilter': 'Modelo',
+    'overview.allExplores': 'Todos los modelos',
+    'overview.tab.tracking': 'Seguimiento',
+    'overview.tab.detail': 'Detalle',
+    'overview.tab.subphase': 'SubFase',
+    'overview.tab.hours': 'Tareo HH',
+    'overview.tab.performance': 'Rendimiento',
+    'overview.focusExplain': 'Enfocar y explicar',
+    'overview.pinToWorkspace': 'Enviar al espacio',
+    'overview.loading': 'Cargando modelos y métricas del proyecto…',
+    'overview.empty':
+        'No se encontraron modelos consultables en este proyecto.',
+    'overview.queryError': 'No se pudo consultar este modelo.',
+
+    // Vista Enfocada (#34)
+    'focused.title': 'Vista Enfocada con Agente Explicador',
+    'focused.selectCard': 'Visualización enfocada',
+    'focused.explainButton': 'Explicar con IA',
+    'focused.explaining': 'Analizando datos…',
+    'focused.explainerTitle': 'Agente Explicador',
+    'focused.explainerEmpty':
+        'Selecciona una tarjeta desde Vista General o Espacio de Métricas, o haz clic en "Explicar con IA" para interpretar tendencias, cuellos de botella y anomalías.',
+    'focused.noCard':
+        'Aún no hay ninguna visualización seleccionada. Elige una desde Vista General o crea una en Espacio de Métricas.',
+    'focused.backToOverview': 'Ir a Vista General',
+    'focused.followUpPlaceholder': 'Pregunta sobre esta vista…',
+
+    // Espacio de Métricas - Constructor (#35)
+    'builder.openButton': 'Crear métrica',
+    'builder.modalTitle': 'Crear métrica personalizada',
+    'builder.exploreLabel': 'Modelo / Explore',
+    'builder.dimensionsLabel': 'Dimensiones (agrupación)',
+    'builder.metricsLabel': 'Métricas (valores)',
+    'builder.titleLabel': 'Título de la tarjeta',
+    'builder.titlePlaceholder': 'Ej. Avance físico por frente',
+    'builder.modeLabel': 'Tipo de visualización',
+    'builder.paletteLabel': 'Paleta de colores',
+    'builder.showTableLabel': 'Mostrar tabla debajo',
+    'builder.previewButton': 'Previsualizar',
+    'builder.pinButton': 'Fijar en pestaña',
+    'builder.noFields': 'Selecciona al menos una dimensión o métrica.',
+    'builder.previewError': 'No se pudo ejecutar la consulta de vista previa.',
 } as const;
 
 export type AgentBiMessageKey = keyof typeof esMessages;

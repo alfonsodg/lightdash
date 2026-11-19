@@ -122,4 +122,57 @@ export const enMessages: Record<AgentBiMessageKey, string> = {
     'locale.label': 'Language',
     'locale.es': 'ES',
     'locale.en': 'EN',
+
+    // Top-level 3-view navigation (#33, #34, #35)
+    'viewMode.aria': 'BI view mode',
+    'viewMode.overview': 'Overview BI',
+    'viewMode.focused': 'Focused View',
+    'viewMode.workspace': 'Metrics Workspace',
+
+    // Vista General (#33)
+    'overview.title': 'Executive Overview',
+    'overview.subtitle': 'Consolidated report powered by live project models',
+    'overview.refresh': 'Refresh data',
+    'overview.searchPlaceholder': 'Filter by model or title…',
+    'overview.exploreFilter': 'Model',
+    'overview.allExplores': 'All models',
+    'overview.tab.tracking': 'Tracking',
+    'overview.tab.detail': 'Detail',
+    'overview.tab.subphase': 'SubPhase',
+    'overview.tab.hours': 'Labor Hours',
+    'overview.tab.performance': 'Performance',
+    'overview.focusExplain': 'Focus & explain',
+    'overview.pinToWorkspace': 'Pin to workspace',
+    'overview.loading': 'Loading project models and metrics…',
+    'overview.empty': 'No queryable models were found in this project.',
+    'overview.queryError': 'Could not query this model.',
+
+    // Vista Enfocada (#34)
+    'focused.title': 'Focused View with AI Explainer',
+    'focused.selectCard': 'Focused visualization',
+    'focused.explainButton': 'Explain with AI',
+    'focused.explaining': 'Analyzing data…',
+    'focused.explainerTitle': 'Explainer Agent',
+    'focused.explainerEmpty':
+        'Pick a card from Overview BI or Metrics Workspace, or click "Explain with AI" to interpret trends, bottlenecks, and anomalies.',
+    'focused.noCard':
+        'No visualization selected yet. Choose one from Overview BI or build one in Metrics Workspace.',
+    'focused.backToOverview': 'Go to Overview BI',
+    'focused.followUpPlaceholder': 'Ask about this view…',
+
+    // Espacio de Métricas - Constructor (#35)
+    'builder.openButton': 'Create metric',
+    'builder.modalTitle': 'Build custom metric',
+    'builder.exploreLabel': 'Model / Explore',
+    'builder.dimensionsLabel': 'Dimensions (group by)',
+    'builder.metricsLabel': 'Metrics (values)',
+    'builder.titleLabel': 'Card title',
+    'builder.titlePlaceholder': 'e.g. Physical progress by front',
+    'builder.modeLabel': 'Chart type',
+    'builder.paletteLabel': 'Color palette',
+    'builder.showTableLabel': 'Show table below',
+    'builder.previewButton': 'Preview',
+    'builder.pinButton': 'Pin to tab',
+    'builder.noFields': 'Select at least one dimension or metric.',
+    'builder.previewError': 'Could not run the preview query.',
 };

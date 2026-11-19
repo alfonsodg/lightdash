@@ -135,6 +135,21 @@ export const deleteSkill = async (
     await parseBody<ExtResponse<{ skillUuid: string }>>(response);
 };
 
+export interface ExploreFieldSummary {
+    id: string;
+    label: string;
+    table: string;
+    type: string;
+}
+
+export interface AgentBiExploreSummary {
+    baseTable: string;
+    dimensions: ExploreFieldSummary[];
+    label: string;
+    metrics: ExploreFieldSummary[];
+    name: string;
+}
+
 export const decideApproval = async (
     projectUuid: string,
     threadUuid: string,
@@ -145,6 +160,36 @@ export const decideApproval = async (
         `${base}/projects/${projectUuid}/threads/${threadUuid}/approvals/${approvalUuid}`,
         {
             body: JSON.stringify({ decision }),
+            headers: { 'content-type': 'application/json' },
+            method: 'POST',
+        },
+    );
+    const body = await parseBody<ExtResponse<unknown>>(response);
+    return body.results;
+};
+
+export const fetchProjectExplores = async (
+    projectUuid: string,
+): Promise<AgentBiExploreSummary[]> => {
+    const response = await fetch(`${base}/projects/${projectUuid}/explores`);
+    const body =
+        await parseBody<ExtResponse<AgentBiExploreSummary[]>>(response);
+    return body.results;
+};
+
+export const fetchMetricPreview = async (
+    projectUuid: string,
+    input: {
+        dimensions: string[];
+        exploreName: string;
+        limit?: number;
+        metrics: string[];
+    },
+): Promise<unknown> => {
+    const response = await fetch(
+        `${base}/projects/${projectUuid}/metric-preview`,
+        {
+            body: JSON.stringify(input),
             headers: { 'content-type': 'application/json' },
             method: 'POST',
         },
