@@ -47,6 +47,11 @@ lightdash_dev.yml
 /packages/sdk/dist
 /packages/sdk-test-app/dist
 /packages/backend/src/ee/services/McpService/mcp-chart-app/dist
+/packages/agent-bi/dist
+
+# Agent BI debug artifacts and local operational inventory
+debug/
+/REMOTE.md
 
 # CLI binary build artifacts
 /packages/cli/bundle/
