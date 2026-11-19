@@ -492,7 +492,15 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
         card: FocusedCardTarget,
         followUp?: string,
     ) => {
-        if (activeThread === null || explaining) return;
+        if (explaining) return;
+        let targetThread = activeThread;
+        if (targetThread === null) {
+            const created = await create({
+                title: card.title ?? t('focused.explainerTitle'),
+            });
+            targetThread = created.threadUuid;
+            setSelectedThread(targetThread);
+        }
         const promptText = followUp
             ? `${followUp}\n\n[Context card: ${card.title ?? card.id}; rows=${JSON.stringify(card.preview.rows.slice(0, 12))}]`
             : locale === 'es'
@@ -519,7 +527,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                 {
                     projectUuid,
                     runtimeOverrides: { locale },
-                    threadUuid: activeThread,
+                    threadUuid: targetThread,
                     userText: promptText,
                 },
                 (event) => {
