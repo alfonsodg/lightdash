@@ -54,6 +54,26 @@ debug/
 /REMOTE.md
 .mcp.json
 
+# AI agent instructions and folders (never tracked in git)
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+GROK.md
+.github/copilot-instructions.md
+.agents/
+.claude/
+.cursor/
+.kiro/
+.windsurf/
+.codex/
+.crush/
+.aider*
+.continue/
+.cline/
+.roo/
+.factory/
+.opencode/
+
 # CLI binary build artifacts
 /packages/cli/bundle/
 /packages/cli/bin/
