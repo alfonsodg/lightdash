@@ -52,6 +52,7 @@ lightdash_dev.yml
 # Agent BI debug artifacts and local operational inventory
 debug/
 /REMOTE.md
+.mcp.json
 
 # CLI binary build artifacts
 /packages/cli/bundle/
