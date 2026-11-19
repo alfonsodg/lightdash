@@ -17,6 +17,7 @@ import {
     PendingReviewBadge,
     useContentReviewEligibility,
 } from '../../../ee/features/contentReview';
+import AgentBiChartLauncher from '../../../ext/agentBi/components/AgentBiChartLauncher';
 import DismissedDraftAlert from '../../../features/contentAsCode/components/DismissedDraftAlert';
 import DraftOverlayFailureAlert from '../../../features/contentAsCode/components/DraftOverlayFailureAlert';
 import DraftStaleAlert from '../../../features/contentAsCode/components/DraftStaleAlert';
@@ -595,6 +596,7 @@ const SavedChartsHeader: FC = () => {
                 <HeaderActions gap="xs">
                     {showChartActions && (
                         <>
+                            {!compact && <AgentBiChartLauncher />}
                             {canExploreFromHere && !compact && (
                                 <ExploreFromHereButton />
                             )}

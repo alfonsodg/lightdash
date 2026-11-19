@@ -1,0 +1,13 @@
+# Agent BI extension overlay (Phase 1): passes AGENT_BI_* operational
+# configuration to the lightdash service. Usage:
+# docker compose -f docker-compose.yml -f docker-compose.agent.yml config
+services:
+    lightdash:
+        environment:
+            - AGENT_BI_SCHEMA=${AGENT_BI_SCHEMA:-agent_ext}
+            - AGENT_BI_LLM_ENDPOINT=${AGENT_BI_LLM_ENDPOINT}
+            - AGENT_BI_LLM_API_KEY=${AGENT_BI_LLM_API_KEY}
+            - AGENT_BI_MODEL=${AGENT_BI_MODEL}
+            - AGENT_BI_MAX_ROWS=${AGENT_BI_MAX_ROWS:-1000}
+            - AGENT_BI_TIMEOUT_MS=${AGENT_BI_TIMEOUT_MS:-30000}
+            - AGENT_BI_LOG_LEVEL=${AGENT_BI_LOG_LEVEL:-info}

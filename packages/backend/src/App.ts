@@ -80,6 +80,7 @@ import { createDatabase } from './database/createDatabase';
 import { MigrationLeaseManager } from './database/migrationLease';
 import { errorHandler, scimErrorHandler } from './errors';
 import { buildExpressSessionOptions } from './expressSessionOptions';
+import { agentBiRouter } from './ext/agentBiRouter';
 import { RegisterRoutes } from './generated/routes';
 import apiSpec from './generated/swagger.json';
 import Logger from './logging/logger';
@@ -877,6 +878,8 @@ export default class App {
 
         // api router
         expressApp.use('/api/v1', apiV1Router);
+        // Isolated analytics-agent extension; the router authenticates each route.
+        expressApp.use('/api/ext/v1', agentBiRouter);
         RegisterRoutes(expressApp);
         // Api docs
         if (

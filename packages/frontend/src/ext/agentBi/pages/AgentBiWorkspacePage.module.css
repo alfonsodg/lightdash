@@ -1,0 +1,117 @@
+.layout {
+    width: 100%;
+    min-width: 0;
+    min-height: calc(100vh - 52px);
+    background: #f1f5fb;
+}
+
+.canvas {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.sidebar {
+    flex: 0 0 22.5rem;
+    min-width: 0;
+    height: calc(100vh - 84px);
+    background: var(--mantine-color-body);
+    border-left: 1px solid var(--mantine-color-indigo-2);
+    padding: var(--mantine-spacing-md);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: 0 2px 10px rgba(30, 64, 175, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebarCollapsed {
+    flex: 0 0 3rem;
+    min-width: 0;
+    align-items: center;
+    background: var(--mantine-color-body);
+    border-left: 1px solid var(--mantine-color-indigo-2);
+    padding: var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+    border-radius: var(--mantine-radius-md);
+    box-shadow: 0 2px 10px rgba(30, 64, 175, 0.05);
+}
+
+.messagesPane {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.promptBar {
+    padding-top: var(--mantine-spacing-xs);
+    border-top: 1px solid var(--mantine-color-indigo-1);
+}
+
+.msgUser {
+    background: var(--mantine-color-indigo-0);
+    border-color: var(--mantine-color-indigo-4);
+}
+
+.msgAssistant {
+    background: #f8faff;
+    border-color: var(--mantine-color-blue-2);
+}
+
+.msgError {
+    background: var(--mantine-color-red-0);
+    border-color: var(--mantine-color-red-4);
+}
+
+@media (max-width: 62em) {
+    .layout {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+    }
+
+    .canvas {
+        width: 100%;
+        flex: 0 0 auto;
+    }
+
+    .sidebar,
+    .sidebarCollapsed {
+        width: 100%;
+        height: auto;
+        flex: 0 0 auto;
+        border-left: none;
+        border-top: 1px solid var(--mantine-color-indigo-2);
+        align-items: stretch;
+    }
+
+    .messagesPane {
+        max-height: 45vh;
+    }
+}
+
+:global([data-mantine-color-scheme='dark']) .layout {
+    background: var(--mantine-color-dark-8);
+}
+
+:global([data-mantine-color-scheme='dark']) .sidebar,
+:global([data-mantine-color-scheme='dark']) .sidebarCollapsed {
+    background: var(--mantine-color-dark-7);
+    border-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .promptBar {
+    border-top-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .msgUser {
+    background: rgba(79, 70, 229, 0.18);
+    border-color: var(--mantine-color-indigo-7);
+}
+
+:global([data-mantine-color-scheme='dark']) .msgAssistant {
+    background: var(--mantine-color-dark-6);
+    border-color: var(--mantine-color-dark-4);
+}
+
+:global([data-mantine-color-scheme='dark']) .msgError {
+    background: rgba(220, 38, 38, 0.18);
+    border-color: var(--mantine-color-red-7);
+}

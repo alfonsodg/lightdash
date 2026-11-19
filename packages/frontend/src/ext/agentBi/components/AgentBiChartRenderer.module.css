@@ -1,0 +1,39 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mantine-spacing-sm);
+    border-radius: var(--mantine-radius-md);
+}
+
+.title {
+    margin-bottom: 0;
+}
+
+.kpi {
+    align-items: center;
+    padding: var(--mantine-spacing-lg);
+    border-radius: var(--mantine-radius-md);
+    background: var(--mantine-color-indigo-light);
+    border-left: 4px solid var(--mantine-color-indigo-filled);
+}
+
+.kpiValue {
+    color: var(--mantine-color-indigo-light-color);
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.tableHead {
+    background: var(--mantine-color-indigo-light);
+}
+
+.chart {
+    height: 320px;
+    width: 100%;
+}
+
+.splitTable {
+    border-top: 1px solid var(--mantine-color-indigo-1);
+    padding-top: var(--mantine-spacing-sm);
+    margin-top: var(--mantine-spacing-xs);
+}

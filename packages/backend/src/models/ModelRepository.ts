@@ -4,6 +4,7 @@ import { PreAggregateDailyStatsModel } from '../ee/models/PreAggregateDailyStats
 import { PreAggregateModel } from '../ee/models/PreAggregateModel';
 import { type UtilRepository } from '../utils/UtilRepository';
 import { AgentActionLogModel } from './AgentActionLogModel';
+import { AgentBiModel } from './AgentBiModel';
 import { AgentCapabilityPolicyModel } from './AgentCapabilityPolicyModel';
 import { AgentConnectionApprovalReadModel } from './AgentConnectionApprovalReadModel';
 import { AgentConnectionApprovalRequestModel } from './AgentConnectionApprovalRequestModel';
@@ -227,6 +228,7 @@ export type ModelManifest = {
     spotlightTableConfigModel: SpotlightTableConfigModel;
     queryHistoryModel: QueryHistoryModel;
     agentActionLogModel: AgentActionLogModel;
+    agentBiModel: AgentBiModel;
     agentCapabilityPolicyModel: AgentCapabilityPolicyModel;
     agentConnectionGrantModel: AgentConnectionGrantModel;
     agentConnectionApprovalReadModel: AgentConnectionApprovalReadModel;
@@ -1008,6 +1010,13 @@ export class ModelRepository
         return this.getModel(
             'userFavoritesModel',
             () => new UserFavoritesModel({ database: this.database }),
+        );
+    }
+
+    public getAgentBiModel(): AgentBiModel {
+        return this.getModel(
+            'agentBiModel',
+            () => new AgentBiModel({ database: this.database }),
         );
     }
 

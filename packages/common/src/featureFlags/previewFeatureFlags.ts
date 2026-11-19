@@ -27,6 +27,9 @@ const PREVIEW_EXCLUDED_FEATURE_FLAGS: ReadonlySet<string> = new Set<string>([
     // still being built. Opt-in: previews and the dashboard E2E specs stay on
     // the shipped filter popover.
     FeatureFlags.DashboardControls,
+    // Isolated extension surface: opt-in per org, previews stay on the
+    // shipped default until the extension is ready for broad QA.
+    FeatureFlags.AgentBi,
     // Derived from instance configuration: left to their config handler so a
     // preview never advertises a feature whose backend isn't configured.
     CommercialFeatureFlags.AiCopilot,

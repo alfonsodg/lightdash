@@ -7,6 +7,7 @@ import { DocumentTitle } from './components/common/DocumentTitle';
 import VersionAutoUpdater from './components/VersionAutoUpdater/VersionAutoUpdater';
 import { AiAgentsGlobalProvider } from './ee/features/aiCopilot/components/Launcher/AiAgentsGlobalProvider';
 import { parseEmbedThemeParams } from './ee/providers/Embed/parseEmbedThemeParams';
+import { AgentBiExtProvider } from './ext/agentBi/AgentBiExtProvider';
 import BuildSkewRefresher from './features/buildHashHandshake/BuildSkewRefresher';
 import { installChunkLoadErrorHandler } from './features/chunkErrorHandler/chunkErrorHandler';
 import ChunkErrorRouteBoundary from './features/errorBoundary/ChunkErrorRouteBoundary';
@@ -55,7 +56,9 @@ const router = sentryCreateBrowserRouter([
                                         <SchedulerJobsProvider>
                                             <ChartColorMappingContextProvider>
                                                 <AiAgentsGlobalProvider>
-                                                    <Outlet />
+                                                    <AgentBiExtProvider>
+                                                        <Outlet />
+                                                    </AgentBiExtProvider>
                                                 </AiAgentsGlobalProvider>
                                             </ChartColorMappingContextProvider>
                                         </SchedulerJobsProvider>

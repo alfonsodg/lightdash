@@ -21,13 +21,18 @@ ENV PATH="$PNPM_HOME/bin:/opt/pnpm:$PATH"
 COPY --from=pnpm-cli /opt/pnpm /opt/pnpm
 COPY --from=pnpm-cli --chmod=755 /pnpm /pnpm
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libatomic1 libstdc++6 \
+    && apt-get install -y --no-install-recommends libatomic1 libstdc++6 zlib1g \
+    && zlib_version="$(dpkg-query -W -f='${Version}' zlib1g)" \
+    && dpkg --compare-versions "$zlib_version" ge '1:1.3.dfsg+really1.3.1-1+deb13u1' \
     && groupadd --gid 1000 node \
     && useradd --uid 1000 --gid node --shell /bin/bash --create-home node \
     && rm -rf /var/lib/apt/lists/*
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node"]
-RUN pnpm config set store-dir /pnpm/store
+RUN pnpm config set store-dir /pnpm/store \
+    && npm install -g npm@latest \
+    && npm cache clean --force \
+    && pip install --no-cache-dir --upgrade setuptools
 
 WORKDIR /usr/app
 
@@ -35,6 +40,7 @@ WORKDIR /usr/app
 # Stage 1: system dependencies base
 # -----------------------------
 FROM pnpm-base AS base
+COPY --chmod=755 scripts/docker/verify-dbt-image.sh /usr/local/bin/verify-dbt-image
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -181,6 +187,46 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && /usr/local/dbt1.12/bin/pip install --no-deps "certifi>=2026.10.19" \
     && ln -s /usr/local/dbt1.12/bin/dbt /usr/local/bin/dbt1.12
 
+COPY --chmod=755 scripts/docker/patch-dbt-metadata.py /usr/local/bin/patch-dbt-metadata
+RUN --mount=type=cache,target=/root/.cache/pip \
+    set -eu; \
+    for version in 1.4 1.5 1.6 1.7 1.8 1.9 1.10 1.11 1.12; do \
+        python="/usr/local/dbt${version}/bin/python"; \
+        if "$python" -c "import importlib.metadata as m; m.version('boto3')" >/dev/null 2>&1; then \
+            "$python" -m pip install --upgrade 'boto3>=1.44.2'; \
+        fi; \
+        if "$python" -c "import importlib.metadata as m; m.version('deepdiff')" >/dev/null 2>&1; then \
+            "$python" -m pip install --upgrade 'deepdiff==8.6.2'; \
+        fi; \
+        for spec in \
+            'cffi>=2.0.0' \
+            'Werkzeug>=3.1.9' \
+            'cryptography>=50.0.0' \
+            'filelock>=4.2.1' \
+            'jaraco.context>=6.1.0' \
+            'oauthlib>=4.0.1' \
+            'protobuf>=5.29.6' \
+            'pyOpenSSL>=26.0.0' \
+            'sqlparse>=0.6.0' \
+            'thrift>=0.24.0' \
+            'urllib3>=2.8.0' \
+            'wheel>=0.46.2' \
+            'setuptools>=80.9.0'; do \
+            pkg="${spec%%[>=<]*}"; \
+            if "$python" -c "import importlib.metadata as m; m.version('$pkg')" >/dev/null 2>&1; then \
+                "$python" -m pip install --upgrade --no-deps "$spec"; \
+            fi; \
+        done; \
+        if [ "$version" = 1.5 ] || [ "$version" = 1.6 ] || [ "$version" = 1.7 ] || [ "$version" = 1.8 ]; then \
+            "$python" -m pip install --upgrade --no-deps 'redshift-connector==2.1.17'; \
+        fi; \
+        if [ "$version" = 1.6 ]; then \
+            "$python" -m pip install --upgrade --no-deps 'google-cloud-bigquery==3.25.0'; \
+        fi; \
+        "$python" /usr/local/bin/patch-dbt-metadata "/usr/local/dbt${version}/lib/python3.11/site-packages"; \
+    done; \
+    /usr/local/bin/verify-dbt-image
+
 # -----------------------------
 # Stage 1: stop here for dev environment
 # -----------------------------
@@ -216,6 +262,7 @@ COPY tsconfig.json .
 COPY .oxlintrc.base.json .
 COPY .pnpmfile.cjs .
 COPY packages/common/package.json ./packages/common/
+COPY packages/agent-bi/package.json ./packages/agent-bi/
 COPY packages/visualization/package.json ./packages/visualization/
 COPY packages/formula/package.json ./packages/formula/
 COPY packages/warehouses/package.json ./packages/warehouses/
@@ -277,9 +324,19 @@ RUN --mount=type=secret,id=TURBO_TOKEN \
     export TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") && \
     turbo build --filter=@lightdash/warehouses
 
+# Build the isolated Agent BI runtime package
+FROM prod-builder AS build-agent-bi
+COPY packages/agent-bi/tsconfig*.json ./packages/agent-bi/
+COPY packages/agent-bi/src/ ./packages/agent-bi/src/
+RUN --mount=type=secret,id=TURBO_TOKEN \
+    export TURBO_TOKEN=$(cat /run/secrets/TURBO_TOKEN 2>/dev/null || echo "") && \
+    turbo build --filter=@lightdash/agent-bi
+
 # Build backend package
 FROM prod-builder AS build-backend
 COPY --from=build-common /usr/app/packages/common/ ./packages/common/
+COPY --from=build-agent-bi /usr/app/packages/agent-bi/ ./packages/agent-bi/
+COPY --from=build-visualization /usr/app/packages/visualization/ ./packages/visualization/
 COPY --from=build-formula /usr/app/packages/formula/ ./packages/formula/
 COPY --from=build-warehouses /usr/app/packages/warehouses/ ./packages/warehouses/
 COPY packages/backend/tsconfig.json ./packages/backend/
@@ -355,6 +412,7 @@ RUN --mount=type=secret,id=TURBO_TOKEN \
 FROM prod-builder AS build-final
 COPY release-safety.json ./release-safety.json
 COPY --from=build-common /usr/app/packages/common/dist/ ./packages/common/dist/
+COPY --from=build-agent-bi /usr/app/packages/agent-bi/dist/ ./packages/agent-bi/dist/
 COPY --from=build-visualization /usr/app/packages/visualization/dist/ ./packages/visualization/dist/
 COPY --from=build-formula /usr/app/packages/formula/dist/ ./packages/formula/dist/
 COPY --from=build-warehouses /usr/app/packages/warehouses/dist/ ./packages/warehouses/dist/

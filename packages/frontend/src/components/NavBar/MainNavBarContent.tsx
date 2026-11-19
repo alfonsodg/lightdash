@@ -35,6 +35,12 @@ const AiAgentsButton = lazy(() =>
     })),
 );
 
+const AgentBiNavButton = lazy(() =>
+    import('../../ext/agentBi/components/AgentBiNavButton').then((module) => ({
+        default: module.default,
+    })),
+);
+
 type Props = {
     activeProjectUuid: string | undefined;
     activeProjectUrlIdentifier: string | undefined;
@@ -129,6 +135,9 @@ export const MainNavBarContent: FC<Props> = ({
                             )}
                             <Suspense fallback={null}>
                                 <AiAgentsButton
+                                    projectUuid={activeProjectUuid}
+                                />
+                                <AgentBiNavButton
                                     projectUuid={activeProjectUuid}
                                 />
                             </Suspense>

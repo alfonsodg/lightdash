@@ -96,6 +96,9 @@ export const projectMemberAbilities: Record<
             projectUuid: member.projectUuid,
             userUuid: member.userUuid,
         });
+        can('view', 'AiAgentSkill', {
+            projectUuid: member.projectUuid,
+        });
     },
     interactive_viewer(member, { can }) {
         projectMemberAbilities.viewer(member, { can });
@@ -286,6 +289,9 @@ export const projectMemberAbilities: Record<
             projectUuid: member.projectUuid,
         });
         can('create', 'ContentAsCode', {
+            projectUuid: member.projectUuid,
+        });
+        can('manage', 'AiAgentSkill', {
             projectUuid: member.projectUuid,
         });
     },

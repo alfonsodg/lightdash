@@ -263,6 +263,11 @@ export enum FeatureFlags {
      * instances only while we gather feedback.
      */
     DashboardFitToScreenDefault = 'dashboard-fit-to-screen-default',
+    /**
+     * Organization-scoped: health surface for the isolated analytics-agent
+     * extension. Off by default; enable per org for vetted organizations.
+     */
+    AgentBi = 'agent-bi',
 }
 
 export type FeatureFlag = {
