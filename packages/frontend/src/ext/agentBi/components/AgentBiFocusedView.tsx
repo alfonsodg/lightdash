@@ -1,6 +1,7 @@
 import {
     Badge,
     Button,
+    Drawer,
     Group,
     Loader,
     Paper,
@@ -90,7 +91,7 @@ const AgentBiFocusedView: FC<Props> = ({
     const [groupBy, setGroupBy] = useState<'week' | 'month' | 'year'>('week');
     const [weekFrom, setWeekFrom] = useState<string>('ALL');
     const [weekTo, setWeekTo] = useState<string>('ALL');
-    const [showExplainer, setShowExplainer] = useState(true);
+    const [showExplainer, setShowExplainer] = useState(false);
     const [followUp, setFollowUp] = useState('');
 
     useEffect(() => {
@@ -230,7 +231,7 @@ const AgentBiFocusedView: FC<Props> = ({
 
     const earnedVsSpentOption = useMemo(
         () => ({
-            grid: { bottom: 28, left: 48, right: 44, top: 34 },
+            grid: { bottom: 28, left: 52, right: 48, top: 48 },
             legend: {
                 data: [
                     'PF del período',
@@ -238,6 +239,8 @@ const AgentBiFocusedView: FC<Props> = ({
                     'HH ganadas',
                     'HH gastadas directas',
                 ],
+                itemGap: 14,
+                textStyle: { fontSize: 11 },
                 top: 2,
             },
             series: [
@@ -493,13 +496,7 @@ const AgentBiFocusedView: FC<Props> = ({
                 </Tabs.List>
             </Tabs>
 
-            <div
-                className={
-                    showExplainer
-                        ? classes.bodyGridWithExplainer
-                        : classes.bodyGrid
-                }
-            >
+            <div className={classes.bodyGrid}>
                 <Stack gap="md">
                     {activeTab === 'resumen' ? (
                         <>
@@ -911,108 +908,103 @@ const AgentBiFocusedView: FC<Props> = ({
                         </div>
                     ) : null}
                 </Stack>
+            </div>
 
-                {showExplainer ? (
-                    <Paper className={classes.explainerPane}>
-                        <Group justify="space-between">
-                            <Group gap="xs">
-                                <ThemeIcon
-                                    variant="gradient"
-                                    gradient={{
-                                        deg: 135,
-                                        from: 'indigo',
-                                        to: 'cyan',
-                                    }}
-                                    size="md"
-                                    radius="md"
+            <Drawer
+                opened={showExplainer}
+                onClose={() => setShowExplainer(false)}
+                position="right"
+                size="md"
+                title={
+                    <Group gap="xs">
+                        <ThemeIcon
+                            variant="gradient"
+                            gradient={{
+                                deg: 135,
+                                from: 'indigo',
+                                to: 'cyan',
+                            }}
+                            size="md"
+                            radius="md"
+                        >
+                            <IconSparkles size={16} />
+                        </ThemeIcon>
+                        <Text fw={700} fz="sm" c="indigo.9">
+                            {t('focused.explainerTitle')}
+                        </Text>
+                    </Group>
+                }
+            >
+                <Stack gap="sm">
+                    <Stack gap="xs" className={classes.messagesScroll}>
+                        {messages.length === 0 && !explaining ? (
+                            <Text fz="xs" c="dimmed">
+                                Haz clic en «Explicar con IA» o escribe una
+                                consulta sobre los indicadores actuales.
+                            </Text>
+                        ) : null}
+                        {messages.map((msg) => (
+                            <Paper
+                                key={msg.id}
+                                p="sm"
+                                withBorder
+                                className={
+                                    msg.role === 'user'
+                                        ? classes.msgUser
+                                        : classes.msgAssistant
+                                }
+                            >
+                                <Text
+                                    fz="xs"
+                                    fw={700}
+                                    c={
+                                        msg.role === 'user'
+                                            ? 'indigo.7'
+                                            : 'blue.7'
+                                    }
                                 >
-                                    <IconSparkles size={16} />
-                                </ThemeIcon>
-                                <Text fw={700} fz="sm" c="indigo.9">
-                                    {t('focused.explainerTitle')}
+                                    {msg.role === 'user'
+                                        ? t('rightSidebar.role.user')
+                                        : t('rightSidebar.role.assistant')}
+                                </Text>
+                                <Text fz="xs">{msg.text}</Text>
+                            </Paper>
+                        ))}
+                        {explaining ? (
+                            <Group gap="xs">
+                                <Loader size="xs" color="indigo" />
+                                <Text fz="xs" c="dimmed">
+                                    {t('focused.explaining')}
                                 </Text>
                             </Group>
-                            <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                onClick={() => setShowExplainer(false)}
-                            >
-                                Ocultar
-                            </Button>
-                        </Group>
+                        ) : null}
+                    </Stack>
 
-                        <Stack gap="xs" className={classes.messagesScroll}>
-                            {messages.length === 0 && !explaining ? (
-                                <Text fz="xs" c="dimmed">
-                                    Haz clic en «Explicar con IA» o escribe una
-                                    consulta sobre los indicadores actuales.
-                                </Text>
-                            ) : null}
-                            {messages.map((msg) => (
-                                <Paper
-                                    key={msg.id}
-                                    p="sm"
-                                    withBorder
-                                    className={
-                                        msg.role === 'user'
-                                            ? classes.msgUser
-                                            : classes.msgAssistant
-                                    }
-                                >
-                                    <Text
-                                        fz="xs"
-                                        fw={700}
-                                        c={
-                                            msg.role === 'user'
-                                                ? 'indigo.7'
-                                                : 'blue.7'
-                                        }
-                                    >
-                                        {msg.role === 'user'
-                                            ? t('rightSidebar.role.user')
-                                            : t('rightSidebar.role.assistant')}
-                                    </Text>
-                                    <Text fz="xs">{msg.text}</Text>
-                                </Paper>
-                            ))}
-                            {explaining ? (
-                                <Group gap="xs">
-                                    <Loader size="xs" color="indigo" />
-                                    <Text fz="xs" c="dimmed">
-                                        {t('focused.explaining')}
-                                    </Text>
-                                </Group>
-                            ) : null}
-                        </Stack>
-
-                        <Group gap="xs" wrap="nowrap">
-                            <TextInput
-                                flex={1}
-                                size="xs"
-                                placeholder={t('focused.followUpPlaceholder')}
-                                value={followUp}
-                                onChange={(e) =>
-                                    setFollowUp(e.currentTarget.value)
+                    <Group gap="xs" wrap="nowrap">
+                        <TextInput
+                            flex={1}
+                            size="xs"
+                            placeholder={t('focused.followUpPlaceholder')}
+                            value={followUp}
+                            onChange={(e) => setFollowUp(e.currentTarget.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSendFollowUp();
                                 }
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleSendFollowUp();
-                                    }
-                                }}
-                            />
-                            <Button
-                                size="xs"
-                                color="indigo"
-                                loading={explaining}
-                                onClick={handleSendFollowUp}
-                            >
-                                {t('rightSidebar.send')}
-                            </Button>
-                        </Group>
-                    </Paper>
-                ) : null}
-            </div>
+                            }}
+                        />
+                        <Button
+                            size="xs"
+                            color="indigo"
+                            loading={explaining}
+                            onClick={handleSendFollowUp}
+                        >
+                            {t('rightSidebar.send')}
+                        </Button>
+                    </Group>
+                </Stack>
+            </Drawer>
         </div>
     );
 };

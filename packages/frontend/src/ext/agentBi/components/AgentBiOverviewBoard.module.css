@@ -65,7 +65,7 @@
 
 .mainSplit {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 235px;
+    grid-template-columns: minmax(0, 1fr) 205px;
     gap: 10px;
     align-items: start;
 }
