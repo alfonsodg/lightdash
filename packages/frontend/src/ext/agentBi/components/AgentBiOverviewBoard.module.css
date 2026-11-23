@@ -1,27 +1,228 @@
-.container {
-    width: 100%;
-    min-width: 0;
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.filterBar {
-    background: var(--mantine-color-body);
-    border: 1px solid var(--mantine-color-indigo-2);
-    border-radius: var(--mantine-radius-md);
-    padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
-    box-shadow: 0 2px 8px rgba(30, 64, 175, 0.04);
+.pbiHeader {
+    background: linear-gradient(105deg, #1e40af 0%, #4f46e5 55%, #6d28d9 100%);
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
-.card {
-    background: var(--mantine-color-body);
-    border: 1px solid var(--mantine-color-indigo-2);
-    border-top: 4px solid var(--mantine-color-indigo-6);
-    border-radius: var(--mantine-radius-md);
-    padding: var(--mantine-spacing-sm);
-    box-shadow: 0 4px 14px rgba(29, 78, 216, 0.07);
+.pbiTitleBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-:global([data-mantine-color-scheme='dark']) .filterBar,
-:global([data-mantine-color-scheme='dark']) .card {
-    background: var(--mantine-color-dark-7);
-    border-color: var(--mantine-color-dark-4);
+.pbiTitle {
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.03em;
+}
+
+.pbiSubtitle {
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.slicerRow {
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    gap: 8px;
+}
+
+@media (max-width: 1100px) {
+    .slicerRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+.slicerCard {
+    background: linear-gradient(180deg, #eff6ff 0%, #e0e7ff 100%);
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+.slicerLabel {
+    color: #1e3a8a;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.mainSplit {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 235px;
+    gap: 10px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .mainSplit {
+        grid-template-columns: 1fr;
+    }
+}
+
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+}
+
+@media (max-width: 1200px) {
+    .kpiGrid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .kpiGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.kpiCard {
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+.kpiHeaderBlue {
+    background: #0284c7;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 6px;
+    text-align: center;
+}
+
+.kpiHeaderPurple {
+    background: #6d28d9;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 6px;
+    text-align: center;
+}
+
+.kpiValue {
+    color: #1d4ed8;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 8px 6px;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.kpiValuePurple {
+    color: #6d28d9;
+    font-size: 20px;
+    font-weight: 800;
+    padding: 8px 6px;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.chartPanel {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.chartPanelBar {
+    background: #1e3a8a;
+    color: #ffffff;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.chartPanelTitle {
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.disciplinePanel {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.matrixPanel {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.matrixTableWrap {
+    max-height: 360px;
+    overflow: auto;
+}
+
+.matrixHeaderRow th {
+    background: #1e3a8a;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.matrixParentRow {
+    background: #f1f5f9;
+    font-weight: 700;
+}
+
+.matrixTotalRow td {
+    background: #dbeafe;
+    color: #1e3a8a;
+    font-weight: 800;
+    border-top: 2px solid #1d4ed8;
+}
+
+.pfDotGreen {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #16a34a;
+    margin-right: 6px;
+}
+
+.pfDotAmber {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #d97706;
+    margin-right: 6px;
+}
+
+.pfDotRed {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #dc2626;
+    margin-right: 6px;
 }

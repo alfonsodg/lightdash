@@ -319,12 +319,14 @@ describe('AgentBiWorkspacePage', () => {
         expect(
             screen.getByTestId('agent-bi-overview-board'),
         ).toBeInTheDocument();
-        expect(screen.getByText('Seguimiento')).toBeInTheDocument();
-        expect(screen.getByText('Tareo HH')).toBeInTheDocument();
-        expect(screen.getByText('Rendimiento')).toBeInTheDocument();
+        expect(
+            screen.getByText('INFORME SEMANAL DE PRODUCCIÓN (ISP)'),
+        ).toBeInTheDocument();
 
         fireEvent.click(screen.getByText('Vista Enfocada'));
         expect(screen.getByTestId('agent-bi-focused-view')).toBeInTheDocument();
+        expect(screen.getByText('Resumen gerencial')).toBeInTheDocument();
+        expect(screen.getByText('HH obreras')).toBeInTheDocument();
 
         fireEvent.click(screen.getByText('Crear métrica'));
         expect(

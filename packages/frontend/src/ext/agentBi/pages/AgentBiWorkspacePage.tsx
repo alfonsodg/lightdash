@@ -686,12 +686,13 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
                         messages={
                             focusedCard
                                 ? (explainerByCard[focusedCard.id] ?? [])
-                                : []
+                                : (explainerByCard['audit-resumen'] ?? [])
                         }
                         onBackToOverview={() => setViewMode('overview')}
                         onExplainCard={(card, followUp) =>
                             void handleExplainCard(card, followUp)
                         }
+                        projectUuid={projectUuid}
                     />
                 </Stack>
             ) : (

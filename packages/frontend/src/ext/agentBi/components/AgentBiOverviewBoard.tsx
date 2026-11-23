@@ -1,34 +1,39 @@
 import {
+    ActionIcon,
     Button,
+    Checkbox,
     Group,
-    Paper,
     Select,
-    SimpleGrid,
     Stack,
-    Tabs,
+    Table,
     Text,
-    TextInput,
 } from '@mantine/core';
 import {
+    IconChevronDown,
+    IconChevronRight,
     IconFocus2,
     IconPin,
     IconRefresh,
-    IconSearch,
 } from '@tabler/icons-react';
-import { useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useEffect, useMemo, useState, type FC } from 'react';
 import EmptyStateLoader from '../../../components/common/EmptyStateLoader';
 import InlineErrorState from '../../../components/common/InlineErrorState';
-import { fetchMetricPreview, type AgentBiExploreSummary } from '../api';
+import EChartsReact from '../../../components/EChartsReactWrapper';
 import { useProjectExplores } from '../hooks/useProjectExplores';
 import { useAgentBiLocale } from '../i18n/agentBiLocale';
 import classes from './AgentBiOverviewBoard.module.css';
-import AgentBiQueryArtifact from './AgentBiQueryArtifact';
 import {
-    parseAgentBiQueryPreview,
     type AgentBiChartMetadata,
     type AgentBiChartViewMode,
     type AgentBiQueryPreview,
 } from './agentBiQueryArtifact';
+import {
+    formatCompactNumber,
+    formatDecimal,
+    loadIspAnalyticsDataset,
+    type IspAnalyticsDataset,
+    type IspHierarchyRow,
+} from './ispAnalyticsAdapter';
 
 export type OverviewSubTab =
     | 'tracking'
@@ -53,320 +58,826 @@ type Props = {
     projectUuid: string;
 };
 
-const classifyExplore = (
-    explore: AgentBiExploreSummary,
-    index: number,
-): OverviewSubTab => {
-    const key = `${explore.name} ${explore.label}`.toLowerCase();
-    if (/hora|tareo|cuadrilla|obrero|gang/.test(key)) return 'hours';
-    if (/rendim|avance_horas|isp|ejecucion|performance/.test(key)) {
-        return 'performance';
-    }
-    if (/subfase|fase|front|frente/.test(key)) return 'subphase';
-    if (/detalle|hito|elemento|downtime/.test(key)) return 'detail';
-    if (/seguimiento|resumen|reporte|project/.test(key)) return 'tracking';
-    const order: OverviewSubTab[] = [
-        'tracking',
-        'detail',
-        'subphase',
-        'hours',
-        'performance',
-    ];
-    return order[index % order.length];
+type PbiSubView = 'inicio' | 'sin_factor' | 'pf_diario' | 'indicadores';
+
+const pfDotClass = (pf: number): string => {
+    if (pf >= 1.0) return classes.pfDotGreen;
+    if (pf >= 0.85) return classes.pfDotAmber;
+    return classes.pfDotRed;
 };
 
-const defaultModeFor = (
-    tab: OverviewSubTab,
-    dims: number,
-    metrics: number,
-): AgentBiChartViewMode => {
-    if (dims === 0 || metrics === 0) return 'table';
-    if (tab === 'tracking') return 'table';
-    if (tab === 'subphase') return 'bar_3d';
-    if (tab === 'hours') return 'horizontal_bar';
-    if (tab === 'performance') return 'line';
-    return 'bar';
-};
+const buildSyntheticComboPreview = (
+    points: {
+        hhGanadas: number;
+        hhGastadas: number;
+        pfAcum: number;
+        pfSem: number;
+        week: string;
+    }[],
+): AgentBiQueryPreview => ({
+    columns: [
+        'Semana',
+        'HH Ganadas',
+        'HH Gastadas',
+        'PF Actual',
+        'PF Acumulado',
+    ],
+    rows: points.map((p) => ({
+        Semana: p.week,
+        'HH Ganadas': Math.round(p.hhGanadas),
+        'HH Gastadas': Math.round(p.hhGastadas),
+        'PF Actual': Number(p.pfSem.toFixed(2)),
+        'PF Acumulado': Number(p.pfAcum.toFixed(2)),
+    })),
+});
 
 const AgentBiOverviewBoard: FC<Props> = ({
     onFocusCard,
     onPinCard,
     projectUuid,
 }) => {
-    const { t } = useAgentBiLocale();
+    const { locale } = useAgentBiLocale();
     const {
         data: explores,
         error: exploresError,
         isLoading: loadingExplores,
-        refetch,
     } = useProjectExplores(projectUuid);
-    const [activeTab, setActiveTab] = useState<OverviewSubTab>('tracking');
-    const [search, setSearch] = useState('');
-    const [selectedExplore, setSelectedExplore] = useState<string>('all');
-    const [cardsByExplore, setCardsByExplore] = useState<
-        Record<
-            string,
-            { error?: boolean; loading: boolean; preview?: AgentBiQueryPreview }
-        >
-    >({});
-    const [refreshNonce, setRefreshNonce] = useState(0);
-    const loadedRef = useRef<Set<string>>(new Set());
 
-    const assignedExplores = useMemo(() => {
-        const list = (explores ?? []).filter(
-            (e) => e.dimensions.length > 0 || e.metrics.length > 0,
-        );
-        return list.map((explore, idx) => ({
-            explore,
-            tab: classifyExplore(explore, idx),
-        }));
-    }, [explores]);
+    const [dataset, setDataset] = useState<IspAnalyticsDataset | null>(null);
+    const [loadingData, setLoadingData] = useState(false);
+    const [loadErr, setLoadErr] = useState<string | null>(null);
+    const [refreshTick, setRefreshTick] = useState(0);
 
-    const visibleExplores = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        const filtered = assignedExplores.filter(({ explore, tab }) => {
-            if (selectedExplore !== 'all' && explore.name !== selectedExplore) {
-                return false;
-            }
-            if (selectedExplore === 'all' && tab !== activeTab) {
-                const hasAnyInTab = assignedExplores.some(
-                    (entry) => entry.tab === activeTab,
-                );
-                if (hasAnyInTab) return false;
-            }
-            if (term.length > 0) {
-                return (
-                    explore.name.toLowerCase().includes(term) ||
-                    explore.label.toLowerCase().includes(term)
-                );
-            }
-            return true;
-        });
-        return filtered.slice(0, 4);
-    }, [activeTab, assignedExplores, search, selectedExplore]);
+    const [pbiView, setPbiView] = useState<PbiSubView>('inicio');
+    const [selectedWeek, setSelectedWeek] = useState<string>('ALL');
+    const [selectedArea, setSelectedArea] = useState<string>('ALL');
+    const [selectedFrente, setSelectedFrente] = useState<string>('ALL');
+    const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>(
+        [],
+    );
+    const [expandedAreas, setExpandedAreas] = useState<Record<string, boolean>>(
+        {},
+    );
 
     useEffect(() => {
+        if (!explores || explores.length === 0) return;
         let cancelled = false;
-        const load = async () => {
-            for (const { explore } of visibleExplores) {
-                const cacheKey = `${refreshNonce}:${explore.name}`;
-                if (loadedRef.current.has(cacheKey)) {
-                    continue;
+        setLoadingData(true);
+        setLoadErr(null);
+        void loadIspAnalyticsDataset(projectUuid, explores)
+            .then((res) => {
+                if (cancelled) return;
+                setDataset(res);
+                const firstArea = res.areas[0];
+                if (firstArea) {
+                    setExpandedAreas({ [firstArea]: true });
                 }
-                loadedRef.current.add(cacheKey);
-                const dims = explore.dimensions.slice(0, 2).map((d) => d.id);
-                const mets = explore.metrics.slice(0, 2).map((m) => m.id);
-                setCardsByExplore((prev) => ({
-                    ...prev,
-                    [explore.name]: { loading: true },
-                }));
-                try {
-                    const raw = await fetchMetricPreview(projectUuid, {
-                        dimensions: dims,
-                        exploreName: explore.name,
-                        limit: 25,
-                        metrics: mets,
-                    });
-                    if (cancelled) return;
-                    const parsed = parseAgentBiQueryPreview(raw);
-                    setCardsByExplore((prev) => ({
-                        ...prev,
-                        [explore.name]: parsed
-                            ? { loading: false, preview: parsed }
-                            : { error: true, loading: false },
-                    }));
-                } catch {
-                    if (cancelled) return;
-                    setCardsByExplore((prev) => ({
-                        ...prev,
-                        [explore.name]: {
-                            error: true,
-                            loading: false,
-                        },
-                    }));
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    setLoadErr(
+                        err instanceof Error
+                            ? err.message
+                            : 'Error loading BI data',
+                    );
                 }
-            }
-        };
-        void load();
+            })
+            .finally(() => {
+                if (!cancelled) setLoadingData(false);
+            });
         return () => {
             cancelled = true;
         };
-    }, [projectUuid, refreshNonce, visibleExplores]);
+    }, [explores, projectUuid, refreshTick]);
 
-    const exploreSelectData = [
-        { label: t('overview.allExplores'), value: 'all' },
-        ...(explores ?? []).map((e) => ({ label: e.label, value: e.name })),
-    ];
+    const filteredWeekly = useMemo(() => {
+        if (!dataset) return [];
+        return dataset.weeklyPoints.filter((w) => {
+            if (selectedWeek !== 'ALL' && w.week !== selectedWeek) return false;
+            if (selectedArea !== 'ALL' && w.area !== selectedArea) return false;
+            if (selectedFrente !== 'ALL' && w.frente !== selectedFrente) {
+                return false;
+            }
+            if (
+                selectedDisciplines.length > 0 &&
+                !selectedDisciplines.includes(w.disciplina)
+            ) {
+                return false;
+            }
+            return true;
+        });
+    }, [
+        dataset,
+        selectedArea,
+        selectedDisciplines,
+        selectedFrente,
+        selectedWeek,
+    ]);
+
+    const filteredHierarchy = useMemo(() => {
+        if (!dataset) return [];
+        return dataset.hierarchyRows.filter((h) => {
+            if (selectedWeek !== 'ALL' && h.week !== selectedWeek) return false;
+            if (selectedArea !== 'ALL' && h.area !== selectedArea) return false;
+            if (selectedFrente !== 'ALL' && h.frente !== selectedFrente) {
+                return false;
+            }
+            if (
+                selectedDisciplines.length > 0 &&
+                !selectedDisciplines.includes(h.disciplina)
+            ) {
+                return false;
+            }
+            return true;
+        });
+    }, [
+        dataset,
+        selectedArea,
+        selectedDisciplines,
+        selectedFrente,
+        selectedWeek,
+    ]);
+
+    const aggregatedWeekly = useMemo(() => {
+        const byWeek = new Map<string, { hhGan: number; hhGast: number }>();
+        for (const p of filteredWeekly) {
+            const cur = byWeek.get(p.week) ?? { hhGan: 0, hhGast: 0 };
+            cur.hhGan += p.hhGanadas;
+            cur.hhGast += p.hhGastadas;
+            byWeek.set(p.week, cur);
+        }
+        let accGan = 0;
+        let accGast = 0;
+        return Array.from(byWeek.entries()).map(([week, val]) => {
+            accGan += val.hhGan;
+            accGast += val.hhGast;
+            const pfSem = val.hhGast > 0 ? val.hhGan / val.hhGast : 1;
+            const pfAcum = accGast > 0 ? accGan / accGast : 1;
+            return {
+                hhGanadas: val.hhGan,
+                hhGastadas: val.hhGast,
+                pfAcum,
+                pfSem,
+                week,
+            };
+        });
+    }, [filteredWeekly]);
+
+    const kpis = useMemo(() => {
+        const latest = aggregatedWeekly[aggregatedWeekly.length - 1];
+        const hhGanSem = latest
+            ? latest.hhGanadas
+            : filteredHierarchy.reduce((s, r) => s + r.hhGanadasSem, 0);
+        const hhGastSem = latest
+            ? latest.hhGastadas
+            : filteredHierarchy.reduce((s, r) => s + r.hhGastadasSem, 0);
+        const pfSem = hhGastSem > 0 ? hhGanSem / hhGastSem : 1;
+
+        const hhGanAcum =
+            aggregatedWeekly.length > 0
+                ? aggregatedWeekly.reduce((s, r) => s + r.hhGanadas, 0)
+                : filteredHierarchy.reduce((s, r) => s + r.hhGanadasAcum, 0);
+        const hhGastAcum =
+            aggregatedWeekly.length > 0
+                ? aggregatedWeekly.reduce((s, r) => s + r.hhGastadas, 0)
+                : filteredHierarchy.reduce((s, r) => s + r.hhGastadasAcum, 0);
+        const pfAcum = hhGastAcum > 0 ? hhGanAcum / hhGastAcum : 1;
+
+        return {
+            hhGanAcum,
+            hhGanSem,
+            hhGastAcum,
+            hhGastSem,
+            pfAcum,
+            pfSem,
+        };
+    }, [aggregatedWeekly, filteredHierarchy]);
+
+    const groupedMatrix = useMemo(() => {
+        const map = new Map<string, IspHierarchyRow[]>();
+        for (const row of filteredHierarchy) {
+            const list = map.get(row.area) ?? [];
+            list.push(row);
+            map.set(row.area, list);
+        }
+        return Array.from(map.entries()).map(([area, children]) => {
+            const cantFisicoSem = children.reduce(
+                (s, c) => s + c.cantFisicoSem,
+                0,
+            );
+            const hhGastadasSem = children.reduce(
+                (s, c) => s + c.hhGastadasSem,
+                0,
+            );
+            const hhGanadasSem = children.reduce(
+                (s, c) => s + c.hhGanadasSem,
+                0,
+            );
+            const modSem = children.reduce((s, c) => s + c.modSem, 0);
+            const hhGastadasAcum = children.reduce(
+                (s, c) => s + c.hhGastadasAcum,
+                0,
+            );
+            const hhGanadasAcum = children.reduce(
+                (s, c) => s + c.hhGanadasAcum,
+                0,
+            );
+            return {
+                area,
+                cantFisicoSem,
+                children,
+                hhGanadasAcum,
+                hhGanadasSem,
+                hhGastadasAcum,
+                hhGastadasSem,
+                modSem,
+                pfAcum: hhGastadasAcum > 0 ? hhGanadasAcum / hhGastadasAcum : 1,
+                pfSem: hhGastadasSem > 0 ? hhGanadasSem / hhGastadasSem : 1,
+            };
+        });
+    }, [filteredHierarchy]);
+
+    const comboChartOption = useMemo(() => {
+        const xLabels = aggregatedWeekly.map((p) => p.week);
+        return {
+            grid: { bottom: 32, left: 48, right: 48, top: 36 },
+            legend: {
+                data: [
+                    'HH GANADAS',
+                    'HH GASTADAS',
+                    'PF Actual',
+                    'PF Acumulado',
+                ],
+                top: 4,
+            },
+            series: [
+                {
+                    data: aggregatedWeekly.map((p) => Math.round(p.hhGanadas)),
+                    itemStyle: { color: '#60a5fa' },
+                    name: 'HH GANADAS',
+                    type: 'bar',
+                },
+                {
+                    data: aggregatedWeekly.map((p) => Math.round(p.hhGastadas)),
+                    itemStyle: { color: '#4f46e5' },
+                    name: 'HH GASTADAS',
+                    type: 'bar',
+                },
+                {
+                    data: aggregatedWeekly.map((p) =>
+                        Number(p.pfSem.toFixed(2)),
+                    ),
+                    itemStyle: { color: '#dc2626' },
+                    name: 'PF Actual',
+                    smooth: true,
+                    type: 'line',
+                    yAxisIndex: 1,
+                },
+                {
+                    data: aggregatedWeekly.map((p) =>
+                        Number(p.pfAcum.toFixed(2)),
+                    ),
+                    itemStyle: { color: '#1e3a8a' },
+                    name: 'PF Acumulado',
+                    smooth: true,
+                    type: 'line',
+                    yAxisIndex: 1,
+                },
+            ],
+            tooltip: { trigger: 'axis' },
+            xAxis: { data: xLabels, type: 'category' },
+            yAxis: [
+                { name: 'HH', type: 'value' },
+                { max: 1.5, min: 0.5, name: 'PF', type: 'value' },
+            ],
+        };
+    }, [aggregatedWeekly]);
+
+    const toggleDiscipline = (disc: string) => {
+        setSelectedDisciplines((prev) =>
+            prev.includes(disc)
+                ? prev.filter((d) => d !== disc)
+                : [...prev, disc],
+        );
+    };
+
+    const currentCardPayload = (): OverviewCardItem => ({
+        exploreName:
+            dataset?.sourceExplores[0]?.exploreName ??
+            'analitica_avance_horas_semana',
+        id: `pbi-isp-${pbiView}`,
+        metadata: {
+            title: 'INFORME SEMANAL DE PRODUCCIÓN (ISP)',
+        },
+        mode: 'bar',
+        preview: buildSyntheticComboPreview(aggregatedWeekly),
+        tab: 'tracking',
+        title: 'INFORME SEMANAL DE PRODUCCIÓN (ISP)',
+    });
+
+    if (loadingExplores || (loadingData && !dataset)) {
+        return <EmptyStateLoader title="Cargando Informe Semanal ISP…" />;
+    }
+
+    if (exploresError || loadErr) {
+        return (
+            <InlineErrorState
+                error={new Error(loadErr ?? exploresError?.message ?? 'Error')}
+                title="Error al cargar los datos BI"
+            />
+        );
+    }
 
     return (
-        <Stack
-            gap="md"
-            className={classes.container}
-            data-testid="agent-bi-overview-board"
-        >
-            <Paper className={classes.filterBar}>
-                <Group justify="space-between" wrap="wrap" gap="sm">
-                    <Stack gap={2}>
-                        <Text fw={700} fz="md" c="indigo.9">
-                            {t('overview.title')}
-                        </Text>
-                        <Text fz="xs" c="dimmed">
-                            {t('overview.subtitle')}
-                        </Text>
-                    </Stack>
-                    <Group gap="xs" wrap="wrap">
-                        <TextInput
-                            size="xs"
-                            leftSection={<IconSearch size={14} />}
-                            placeholder={t('overview.searchPlaceholder')}
-                            value={search}
-                            onChange={(e) => setSearch(e.currentTarget.value)}
-                        />
-                        <Select
-                            size="xs"
-                            aria-label={t('overview.exploreFilter')}
-                            value={selectedExplore}
-                            data={exploreSelectData}
-                            onChange={(val) => setSelectedExplore(val ?? 'all')}
-                        />
-                        <Button
-                            size="xs"
-                            variant="light"
-                            color="indigo"
-                            leftSection={<IconRefresh size={14} />}
-                            onClick={() => {
-                                setCardsByExplore({});
-                                setRefreshNonce((n) => n + 1);
-                                void refetch();
-                            }}
-                        >
-                            {t('overview.refresh')}
-                        </Button>
-                    </Group>
-                </Group>
-            </Paper>
-
-            <Tabs
-                value={activeTab}
-                onChange={(val) =>
-                    setActiveTab((val as OverviewSubTab) ?? 'tracking')
-                }
-                variant="pills"
-                color="indigo"
-            >
-                <Tabs.List>
-                    <Tabs.Tab value="tracking">
-                        {t('overview.tab.tracking')}
-                    </Tabs.Tab>
-                    <Tabs.Tab value="detail">
-                        {t('overview.tab.detail')}
-                    </Tabs.Tab>
-                    <Tabs.Tab value="subphase">
-                        {t('overview.tab.subphase')}
-                    </Tabs.Tab>
-                    <Tabs.Tab value="hours">{t('overview.tab.hours')}</Tabs.Tab>
-                    <Tabs.Tab value="performance">
-                        {t('overview.tab.performance')}
-                    </Tabs.Tab>
-                </Tabs.List>
-            </Tabs>
-
-            {loadingExplores ? (
-                <EmptyStateLoader title={t('overview.loading')} />
-            ) : exploresError ? (
-                <InlineErrorState message={t('overview.queryError')} />
-            ) : visibleExplores.length === 0 ? (
-                <Paper withBorder p="xl" ta="center">
-                    <Text c="dimmed" fz="sm">
-                        {t('overview.empty')}
+        <div className={classes.root} data-testid="agent-bi-overview-board">
+            <div className={classes.pbiHeader}>
+                <div className={classes.pbiTitleBlock}>
+                    <Text className={classes.pbiTitle}>
+                        {locale === 'en'
+                            ? 'WEEKLY PRODUCTION REPORT (ISP)'
+                            : 'INFORME SEMANAL DE PRODUCCIÓN (ISP)'}
                     </Text>
-                </Paper>
-            ) : (
-                <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
-                    {visibleExplores.map(({ explore, tab }) => {
-                        const state = cardsByExplore[explore.name];
-                        const mode = defaultModeFor(
-                            tab,
-                            explore.dimensions.length,
-                            explore.metrics.length,
-                        );
-                        const cardItem: OverviewCardItem | null = state?.preview
-                            ? {
-                                  exploreName: explore.name,
-                                  id: `overview-${explore.name}`,
-                                  metadata: {
-                                      paletteName: 'corporate',
-                                      showTableBelow: tab === 'detail',
-                                      title: explore.label,
-                                  },
-                                  mode,
-                                  preview: state.preview,
-                                  tab,
-                                  title: explore.label,
-                              }
-                            : null;
-                        return (
-                            <Paper key={explore.name} className={classes.card}>
-                                <Group
-                                    justify="space-between"
-                                    mb="xs"
-                                    wrap="nowrap"
-                                >
-                                    <Text fw={600} fz="sm" truncate>
-                                        {explore.label}
-                                    </Text>
-                                    {cardItem ? (
-                                        <Group gap={6} wrap="nowrap">
-                                            <Button
-                                                size="compact-xs"
-                                                variant="light"
-                                                color="indigo"
-                                                leftSection={
-                                                    <IconFocus2 size={13} />
-                                                }
-                                                onClick={() =>
-                                                    onFocusCard(cardItem)
-                                                }
-                                            >
-                                                {t('overview.focusExplain')}
-                                            </Button>
-                                            <Button
-                                                size="compact-xs"
-                                                variant="light"
-                                                color="teal"
-                                                leftSection={
-                                                    <IconPin size={13} />
-                                                }
-                                                onClick={() =>
-                                                    onPinCard(cardItem)
-                                                }
-                                            >
-                                                {t('overview.pinToWorkspace')}
-                                            </Button>
-                                        </Group>
-                                    ) : null}
-                                </Group>
-                                {!state || state.loading ? (
-                                    <EmptyStateLoader
-                                        title={t('overview.loading')}
-                                    />
-                                ) : state.error ? (
-                                    <InlineErrorState
-                                        message={t('overview.queryError')}
-                                    />
-                                ) : cardItem ? (
-                                    <AgentBiQueryArtifact
-                                        preview={cardItem.preview}
-                                        initialMode={cardItem.mode}
-                                        initialMetadata={cardItem.metadata}
-                                    />
-                                ) : null}
-                            </Paper>
-                        );
-                    })}
-                </SimpleGrid>
-            )}
-        </Stack>
+                    <Text className={classes.pbiSubtitle}>
+                        {selectedWeek === 'ALL'
+                            ? `${dataset?.weeks.length ?? 0} semanas · Fuente: bronze`
+                            : `Corte semana: ${selectedWeek}`}
+                    </Text>
+                </div>
+                <Group gap="xs" wrap="wrap">
+                    {(
+                        [
+                            ['inicio', 'Inicio'],
+                            ['sin_factor', 'AS sin factor'],
+                            ['pf_diario', 'AS PF Diario'],
+                            ['indicadores', 'AS Indicadores'],
+                        ] as const
+                    ).map(([key, label]) => (
+                        <Button
+                            key={key}
+                            size="compact-xs"
+                            variant={pbiView === key ? 'white' : 'subtle'}
+                            color={pbiView === key ? 'indigo' : 'gray'}
+                            onClick={() => setPbiView(key)}
+                        >
+                            {label}
+                        </Button>
+                    ))}
+                    <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="cyan"
+                        leftSection={<IconFocus2 size={14} />}
+                        onClick={() => onFocusCard(currentCardPayload())}
+                    >
+                        Enfocar y explicar
+                    </Button>
+                    <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="teal"
+                        leftSection={<IconPin size={14} />}
+                        onClick={() => onPinCard(currentCardPayload())}
+                    >
+                        Enviar al espacio
+                    </Button>
+                    <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="gray"
+                        aria-label="Actualizar"
+                        onClick={() => setRefreshTick((n) => n + 1)}
+                    >
+                        <IconRefresh size={14} />
+                    </ActionIcon>
+                </Group>
+            </div>
+
+            <div className={classes.slicerRow}>
+                <div className={classes.slicerCard}>
+                    <div className={classes.slicerLabel}>SEMANA</div>
+                    <Select
+                        size="xs"
+                        aria-label="Semana"
+                        value={selectedWeek}
+                        onChange={(v) => setSelectedWeek(v ?? 'ALL')}
+                        data={[
+                            { label: 'Todas', value: 'ALL' },
+                            ...(dataset?.weeks ?? []).map((w) => ({
+                                label: w,
+                                value: w,
+                            })),
+                        ]}
+                    />
+                </div>
+                <div className={classes.slicerCard}>
+                    <div className={classes.slicerLabel}>ÁREA</div>
+                    <Group gap={4} wrap="wrap">
+                        <Button
+                            size="compact-xs"
+                            variant={
+                                selectedArea === 'ALL' ? 'filled' : 'outline'
+                            }
+                            color="indigo"
+                            onClick={() => setSelectedArea('ALL')}
+                        >
+                            Todas
+                        </Button>
+                        {(dataset?.areas ?? []).slice(0, 10).map((area) => (
+                            <Button
+                                key={area}
+                                size="compact-xs"
+                                variant={
+                                    selectedArea === area ? 'filled' : 'outline'
+                                }
+                                color="indigo"
+                                onClick={() =>
+                                    setSelectedArea((prev) =>
+                                        prev === area ? 'ALL' : area,
+                                    )
+                                }
+                            >
+                                {area}
+                            </Button>
+                        ))}
+                    </Group>
+                </div>
+                <div className={classes.slicerCard}>
+                    <div className={classes.slicerLabel}>FRENTE</div>
+                    <Group gap={4} wrap="wrap">
+                        <Button
+                            size="compact-xs"
+                            variant={
+                                selectedFrente === 'ALL' ? 'filled' : 'outline'
+                            }
+                            color="red"
+                            onClick={() => setSelectedFrente('ALL')}
+                        >
+                            Todos
+                        </Button>
+                        {(dataset?.frentes ?? []).map((fr) => (
+                            <Button
+                                key={fr}
+                                size="compact-xs"
+                                variant={
+                                    selectedFrente === fr ? 'filled' : 'outline'
+                                }
+                                color="red"
+                                onClick={() =>
+                                    setSelectedFrente((prev) =>
+                                        prev === fr ? 'ALL' : fr,
+                                    )
+                                }
+                            >
+                                {fr}
+                            </Button>
+                        ))}
+                    </Group>
+                </div>
+            </div>
+
+            <div className={classes.mainSplit}>
+                <Stack gap="sm">
+                    <div className={classes.kpiGrid}>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderBlue}>
+                                HH Gan. Semanal
+                            </div>
+                            <div className={classes.kpiValue}>
+                                {formatCompactNumber(kpis.hhGanSem)}
+                            </div>
+                        </div>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderBlue}>
+                                HH Gast. Semanal
+                            </div>
+                            <div className={classes.kpiValue}>
+                                {formatCompactNumber(kpis.hhGastSem)}
+                            </div>
+                        </div>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderBlue}>
+                                PF Semanal
+                            </div>
+                            <div className={classes.kpiValue}>
+                                {formatDecimal(kpis.pfSem)}
+                            </div>
+                        </div>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderPurple}>
+                                HH Gan. Acumulado
+                            </div>
+                            <div className={classes.kpiValuePurple}>
+                                {formatCompactNumber(kpis.hhGanAcum)}
+                            </div>
+                        </div>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderPurple}>
+                                HH Gast. Acumulado
+                            </div>
+                            <div className={classes.kpiValuePurple}>
+                                {formatCompactNumber(kpis.hhGastAcum)}
+                            </div>
+                        </div>
+                        <div className={classes.kpiCard}>
+                            <div className={classes.kpiHeaderPurple}>
+                                PF Acumulado
+                            </div>
+                            <div className={classes.kpiValuePurple}>
+                                {formatDecimal(kpis.pfAcum)}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={classes.chartPanel}>
+                        <div className={classes.chartPanelBar}>
+                            <Text className={classes.chartPanelTitle}>
+                                PF: HH DIRECTAS + AFECTACIÓN CLIMA (
+                                {pbiView.toUpperCase()})
+                            </Text>
+                        </div>
+                        <EChartsReact
+                            option={comboChartOption}
+                            notMerge
+                            lazyUpdate
+                        />
+                    </div>
+
+                    <div className={classes.matrixPanel}>
+                        <div className={classes.matrixTableWrap}>
+                            <Table
+                                striped
+                                highlightOnHover
+                                withTableBorder
+                                withColumnBorders
+                                fz="xs"
+                            >
+                                <Table.Thead>
+                                    <Table.Tr
+                                        className={classes.matrixHeaderRow}
+                                    >
+                                        <Table.Th>
+                                            Área / Disciplina / Commoditie
+                                        </Table.Th>
+                                        <Table.Th>Cant. Físico Sem.</Table.Th>
+                                        <Table.Th>HH Gastadas Semana</Table.Th>
+                                        <Table.Th>HH Ganadas Semana</Table.Th>
+                                        <Table.Th>PF Semana</Table.Th>
+                                        <Table.Th>MOD Sem.</Table.Th>
+                                        <Table.Th>
+                                            HH Gastadas Acumulado
+                                        </Table.Th>
+                                        <Table.Th>
+                                            HH Ganadas Acumulado
+                                        </Table.Th>
+                                        <Table.Th>PF Acum.</Table.Th>
+                                    </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                    {groupedMatrix.map((grp) => {
+                                        const isOpen = Boolean(
+                                            expandedAreas[grp.area],
+                                        );
+                                        return (
+                                            <>
+                                                <Table.Tr
+                                                    key={grp.area}
+                                                    className={
+                                                        classes.matrixParentRow
+                                                    }
+                                                >
+                                                    <Table.Td>
+                                                        <Button
+                                                            size="compact-xs"
+                                                            variant="subtle"
+                                                            color="dark"
+                                                            leftSection={
+                                                                isOpen ? (
+                                                                    <IconChevronDown
+                                                                        size={
+                                                                            12
+                                                                        }
+                                                                    />
+                                                                ) : (
+                                                                    <IconChevronRight
+                                                                        size={
+                                                                            12
+                                                                        }
+                                                                    />
+                                                                )
+                                                            }
+                                                            onClick={() =>
+                                                                setExpandedAreas(
+                                                                    (prev) => ({
+                                                                        ...prev,
+                                                                        [grp.area]:
+                                                                            !prev[
+                                                                                grp
+                                                                                    .area
+                                                                            ],
+                                                                    }),
+                                                                )
+                                                            }
+                                                        >
+                                                            {grp.area}
+                                                        </Button>
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {formatCompactNumber(
+                                                            grp.cantFisicoSem,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {formatCompactNumber(
+                                                            grp.hhGastadasSem,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {formatCompactNumber(
+                                                            grp.hhGanadasSem,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <span
+                                                            className={pfDotClass(
+                                                                grp.pfSem,
+                                                            )}
+                                                        />
+                                                        {formatDecimal(
+                                                            grp.pfSem,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {grp.modSem}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {formatCompactNumber(
+                                                            grp.hhGastadasAcum,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        {formatCompactNumber(
+                                                            grp.hhGanadasAcum,
+                                                        )}
+                                                    </Table.Td>
+                                                    <Table.Td>
+                                                        <span
+                                                            className={pfDotClass(
+                                                                grp.pfAcum,
+                                                            )}
+                                                        />
+                                                        {formatDecimal(
+                                                            grp.pfAcum,
+                                                        )}
+                                                    </Table.Td>
+                                                </Table.Tr>
+                                                {isOpen &&
+                                                    grp.children.map((ch) => (
+                                                        <Table.Tr key={ch.id}>
+                                                            <Table.Td pl="xl">
+                                                                {ch.disciplina}{' '}
+                                                                ·{' '}
+                                                                {ch.commoditie}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {formatCompactNumber(
+                                                                    ch.cantFisicoSem,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {formatCompactNumber(
+                                                                    ch.hhGastadasSem,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {formatCompactNumber(
+                                                                    ch.hhGanadasSem,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                <span
+                                                                    className={pfDotClass(
+                                                                        ch.pfSem,
+                                                                    )}
+                                                                />
+                                                                {formatDecimal(
+                                                                    ch.pfSem,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {ch.modSem}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {formatCompactNumber(
+                                                                    ch.hhGastadasAcum,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                {formatCompactNumber(
+                                                                    ch.hhGanadasAcum,
+                                                                )}
+                                                            </Table.Td>
+                                                            <Table.Td>
+                                                                <span
+                                                                    className={pfDotClass(
+                                                                        ch.pfAcum,
+                                                                    )}
+                                                                />
+                                                                {formatDecimal(
+                                                                    ch.pfAcum,
+                                                                )}
+                                                            </Table.Td>
+                                                        </Table.Tr>
+                                                    ))}
+                                            </>
+                                        );
+                                    })}
+                                    <Table.Tr
+                                        className={classes.matrixTotalRow}
+                                    >
+                                        <Table.Td>Total</Table.Td>
+                                        <Table.Td>—</Table.Td>
+                                        <Table.Td>
+                                            {formatCompactNumber(
+                                                groupedMatrix.reduce(
+                                                    (s, g) =>
+                                                        s + g.hhGastadasSem,
+                                                    0,
+                                                ),
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {formatCompactNumber(
+                                                groupedMatrix.reduce(
+                                                    (s, g) =>
+                                                        s + g.hhGanadasSem,
+                                                    0,
+                                                ),
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {formatDecimal(kpis.pfSem)}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {groupedMatrix.reduce(
+                                                (s, g) => s + g.modSem,
+                                                0,
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {formatCompactNumber(
+                                                groupedMatrix.reduce(
+                                                    (s, g) =>
+                                                        s + g.hhGastadasAcum,
+                                                    0,
+                                                ),
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {formatCompactNumber(
+                                                groupedMatrix.reduce(
+                                                    (s, g) =>
+                                                        s + g.hhGanadasAcum,
+                                                    0,
+                                                ),
+                                            )}
+                                        </Table.Td>
+                                        <Table.Td>
+                                            {formatDecimal(kpis.pfAcum)}
+                                        </Table.Td>
+                                    </Table.Tr>
+                                </Table.Tbody>
+                            </Table>
+                        </div>
+                    </div>
+                </Stack>
+
+                <div className={classes.disciplinePanel}>
+                    <Group justify="space-between" mb="xs">
+                        <Text className={classes.slicerLabel}>DISCIPLINA</Text>
+                        {selectedDisciplines.length > 0 ? (
+                            <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                onClick={() => setSelectedDisciplines([])}
+                            >
+                                Todas
+                            </Button>
+                        ) : null}
+                    </Group>
+                    <Stack gap={6}>
+                        {(dataset?.disciplinas ?? []).map((disc) => (
+                            <Checkbox
+                                key={disc}
+                                size="xs"
+                                label={disc}
+                                checked={selectedDisciplines.includes(disc)}
+                                onChange={() => toggleDiscipline(disc)}
+                            />
+                        ))}
+                    </Stack>
+                </div>
+            </div>
+        </div>
     );
 };
 

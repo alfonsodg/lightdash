@@ -1,72 +1,167 @@
-.layout {
-    width: 100%;
-    min-width: 0;
-    align-items: stretch;
+.shell {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.mainPane {
-    flex: 1.8 1 0;
-    min-width: 0;
-    background: var(--mantine-color-body);
-    border: 1px solid var(--mantine-color-indigo-2);
-    border-top: 4px solid var(--mantine-color-indigo-6);
-    border-radius: var(--mantine-radius-md);
-    padding: var(--mantine-spacing-md);
-    box-shadow: 0 4px 16px rgba(29, 78, 216, 0.08);
+.darkHeader {
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.darkTitle {
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.darkSubtitle {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.subTabsBar {
+    border-bottom: 1px solid #cbd5e1;
+    background: #ffffff;
+    padding: 0 8px;
+    border-radius: 6px 6px 0 0;
+}
+
+.bodyGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+}
+
+.bodyGridWithExplainer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 14px;
+    align-items: start;
+}
+
+@media (max-width: 1120px) {
+    .bodyGridWithExplainer {
+        grid-template-columns: 1fr;
+    }
+}
+
+.narrativeBox {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #d97706;
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+
+.kpiStrip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+}
+
+@media (max-width: 1200px) {
+    .kpiStrip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .kpiStrip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.kpiHero {
+    background: #b45309;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.kpiHeroLabel {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.kpiHeroValue {
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: 800;
+    margin-top: 4px;
+}
+
+.kpiNeutral {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.kpiNeutralValueAmber {
+    color: #b45309;
+    font-size: 22px;
+    font-weight: 800;
+    margin-top: 4px;
+}
+
+.kpiNeutralValueRed {
+    color: #b91c1c;
+    font-size: 22px;
+    font-weight: 800;
+    margin-top: 4px;
+}
+
+.chartsRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (max-width: 960px) {
+    .chartsRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+.auditCard {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 14px;
 }
 
 .explainerPane {
-    flex: 1 1 0;
-    min-width: 20rem;
-    max-height: calc(100vh - 140px);
-    background: var(--mantine-color-body);
-    border: 1px solid var(--mantine-color-indigo-2);
-    border-radius: var(--mantine-radius-md);
-    padding: var(--mantine-spacing-md);
-    box-shadow: 0 4px 16px rgba(29, 78, 216, 0.08);
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 14px;
     display: flex;
     flex-direction: column;
+    gap: 10px;
+    position: sticky;
+    top: 12px;
 }
 
 .messagesScroll {
-    flex: 1 1 0;
-    min-height: 12rem;
+    max-height: 460px;
     overflow-y: auto;
 }
 
 .msgAssistant {
-    background: #f8faff;
-    border-color: var(--mantine-color-blue-2);
+    background: #f8fafc;
+    border-color: #cbd5e1;
 }
 
 .msgUser {
-    background: var(--mantine-color-indigo-0);
-    border-color: var(--mantine-color-indigo-4);
-}
-
-@media (max-width: 62em) {
-    .layout {
-        flex-direction: column;
-    }
-
-    .explainerPane {
-        min-width: 0;
-        max-height: none;
-    }
-}
-
-:global([data-mantine-color-scheme='dark']) .mainPane,
-:global([data-mantine-color-scheme='dark']) .explainerPane {
-    background: var(--mantine-color-dark-7);
-    border-color: var(--mantine-color-dark-4);
-}
-
-:global([data-mantine-color-scheme='dark']) .msgAssistant {
-    background: var(--mantine-color-dark-6);
-    border-color: var(--mantine-color-dark-4);
-}
-
-:global([data-mantine-color-scheme='dark']) .msgUser {
-    background: rgba(79, 70, 229, 0.18);
-    border-color: var(--mantine-color-indigo-7);
+    background: #eef2ff;
+    border-color: #c7d2fe;
 }
