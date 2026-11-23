@@ -385,12 +385,7 @@ const AgentBiOverviewBoard: FC<Props> = ({
         const errMsg =
             loadErr ??
             (exploresError instanceof Error ? exploresError.message : 'Error');
-        return (
-            <InlineErrorState
-                message={errMsg}
-                title="Error al cargar los datos BI"
-            />
-        );
+        return <InlineErrorState message={errMsg} />;
     }
 
     return (
