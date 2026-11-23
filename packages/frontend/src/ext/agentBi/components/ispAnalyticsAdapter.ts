@@ -125,8 +125,8 @@ const runExploreQuery = async (
     maxMetrics: number,
     limit: number,
 ): Promise<AgentBiQueryPreview | null> => {
-    const dims = explore.dimensions.slice(0, maxDims).map((d) => d.fieldId);
-    const mets = explore.metrics.slice(0, maxMetrics).map((m) => m.fieldId);
+    const dims = explore.dimensions.slice(0, maxDims).map((d) => d.id);
+    const mets = explore.metrics.slice(0, maxMetrics).map((m) => m.id);
     if (dims.length === 0 && mets.length === 0) return null;
     try {
         const raw = await fetchMetricPreview(projectUuid, {

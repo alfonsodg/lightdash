@@ -312,8 +312,31 @@ const AgentBiFocusedView: FC<Props> = ({
             metadata: { title: `Auditoría ISP — ${activeTab}` },
             mode: 'bar',
             preview: {
-                columns: [
-                    'Periodo',
+                columns: {
+                    Periodo: { format: null, label: 'Período', type: 'string' },
+                    HH_Ganadas: {
+                        format: null,
+                        label: 'HH Ganadas',
+                        type: 'number',
+                    },
+                    HH_Gastadas: {
+                        format: null,
+                        label: 'HH Gastadas',
+                        type: 'number',
+                    },
+                    PF_Periodo: {
+                        format: null,
+                        label: 'PF Período',
+                        type: 'number',
+                    },
+                    HH_Perdidas_Acum: {
+                        format: null,
+                        label: 'HH Perdidas Acum',
+                        type: 'number',
+                    },
+                },
+                dimensions: ['Periodo'],
+                metrics: [
                     'HH_Ganadas',
                     'HH_Gastadas',
                     'PF_Periodo',

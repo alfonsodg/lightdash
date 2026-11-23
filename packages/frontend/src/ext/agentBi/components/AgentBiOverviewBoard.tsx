@@ -75,19 +75,21 @@ const buildSyntheticComboPreview = (
         week: string;
     }[],
 ): AgentBiQueryPreview => ({
-    columns: [
-        'Semana',
-        'HH Ganadas',
-        'HH Gastadas',
-        'PF Actual',
-        'PF Acumulado',
-    ],
+    columns: {
+        Semana: { format: null, label: 'Semana', type: 'string' },
+        hh_ganadas: { format: null, label: 'HH Ganadas', type: 'number' },
+        hh_gastadas: { format: null, label: 'HH Gastadas', type: 'number' },
+        pf_actual: { format: null, label: 'PF Actual', type: 'number' },
+        pf_acumulado: { format: null, label: 'PF Acumulado', type: 'number' },
+    },
+    dimensions: ['Semana'],
+    metrics: ['hh_ganadas', 'hh_gastadas', 'pf_actual', 'pf_acumulado'],
     rows: points.map((p) => ({
         Semana: p.week,
-        'HH Ganadas': Math.round(p.hhGanadas),
-        'HH Gastadas': Math.round(p.hhGastadas),
-        'PF Actual': Number(p.pfSem.toFixed(2)),
-        'PF Acumulado': Number(p.pfAcum.toFixed(2)),
+        hh_ganadas: Math.round(p.hhGanadas),
+        hh_gastadas: Math.round(p.hhGastadas),
+        pf_actual: Number(p.pfSem.toFixed(2)),
+        pf_acumulado: Number(p.pfAcum.toFixed(2)),
     })),
 });
 
@@ -380,9 +382,12 @@ const AgentBiOverviewBoard: FC<Props> = ({
     }
 
     if (exploresError || loadErr) {
+        const errMsg =
+            loadErr ??
+            (exploresError instanceof Error ? exploresError.message : 'Error');
         return (
             <InlineErrorState
-                error={new Error(loadErr ?? exploresError?.message ?? 'Error')}
+                message={errMsg}
                 title="Error al cargar los datos BI"
             />
         );
