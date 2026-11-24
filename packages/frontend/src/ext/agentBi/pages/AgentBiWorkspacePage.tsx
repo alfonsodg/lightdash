@@ -133,7 +133,7 @@ const AgentBiWorkspacePage: FC<Props> = ({ dashboardContext = null }) => {
     const [builderOpen, setBuilderOpen] = useState(false);
     const [viewMode, setViewMode] = useState<
         'overview' | 'focused' | 'workspace'
-    >('workspace');
+    >('overview');
     const [focusedCard, setFocusedCard] = useState<FocusedCardTarget | null>(
         null,
     );

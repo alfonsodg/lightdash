@@ -62,6 +62,10 @@ describe('AgentBiWorkspacePage', () => {
         );
 
         expect(
+            screen.getByTestId('agent-bi-overview-board'),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
+        expect(
             screen.getByLabelText('Escribe tu consulta'),
         ).toBeInTheDocument();
     });
@@ -95,6 +99,7 @@ describe('AgentBiWorkspacePage', () => {
                 </MemoryRouter>
             </MantineBaseProvider>,
         );
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
         fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'What changed?' },
         });
@@ -160,6 +165,7 @@ describe('AgentBiWorkspacePage', () => {
                 </MemoryRouter>
             </MantineBaseProvider>,
         );
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
         fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'Count orders by status.' },
         });
@@ -204,6 +210,7 @@ describe('AgentBiWorkspacePage', () => {
             </MantineBaseProvider>
         );
         const { rerender } = render(view('revenue'));
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
         fireEvent.change(screen.getByLabelText('Escribe tu consulta'), {
             target: { value: 'Run it' },
         });
@@ -240,6 +247,7 @@ describe('AgentBiWorkspacePage', () => {
             </MantineBaseProvider>,
         );
 
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
         expect(screen.getByTestId('agent-bi-left-sidebar')).toBeInTheDocument();
         expect(screen.getByText('Esquemas de sesión')).toBeInTheDocument();
         expect(
@@ -296,6 +304,7 @@ describe('AgentBiWorkspacePage', () => {
             </MantineBaseProvider>,
         );
 
+        fireEvent.click(screen.getByText('Espacio de Métricas'));
         expect(screen.getByText('Espacios de trabajo')).toBeInTheDocument();
         fireEvent.click(screen.getByText('EN'));
         expect(screen.getByText('Workspaces')).toBeInTheDocument();
