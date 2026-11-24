@@ -1,14 +1,22 @@
 .root {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .pbiHeader {
-    background: linear-gradient(105deg, #1e40af 0%, #4f46e5 55%, #6d28d9 100%);
+    background: linear-gradient(
+        112deg,
+        #f8fafc 0%,
+        #f8fafc 20%,
+        #6366f1 22%,
+        #4f46e5 58%,
+        #1d4ed8 100%
+    );
+    border: 1px solid #cbd5e1;
     border-radius: 6px;
     color: #ffffff;
-    padding: 10px 16px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -19,25 +27,47 @@
 .pbiTitleBlock {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 280px;
     gap: 2px;
+    padding-left: 16%;
+}
+
+@media (max-width: 900px) {
+    .pbiHeader {
+        background: linear-gradient(
+            105deg,
+            #1e40af 0%,
+            #4f46e5 55%,
+            #6d28d9 100%
+        );
+    }
+
+    .pbiTitleBlock {
+        padding-left: 0;
+        align-items: flex-start;
+    }
 }
 
 .pbiTitle {
     color: #ffffff;
     font-weight: 800;
     font-size: 15px;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
+    text-align: center;
 }
 
 .pbiSubtitle {
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.92);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.05em;
 }
 
 .slicerRow {
     display: grid;
-    grid-template-columns: 200px 1fr 220px;
+    grid-template-columns: 185px 1fr 220px;
     gap: 8px;
 }
 
@@ -48,10 +78,11 @@
 }
 
 .slicerCard {
-    background: linear-gradient(180deg, #eff6ff 0%, #e0e7ff 100%);
-    border: 1px solid #93c5fd;
-    border-radius: 6px;
+    background: linear-gradient(180deg, #e0e7ff 0%, #f1f5f9 100%);
+    border: 1.5px solid #818cf8;
+    border-radius: 8px;
     padding: 6px 10px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .slicerLabel {
@@ -63,10 +94,56 @@
     text-transform: uppercase;
 }
 
+.areaTile {
+    background: #fce7f3;
+    border: 1px solid #9d174d;
+    border-radius: 3px;
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+}
+
+.areaTileActive {
+    background: #be185d;
+    border: 1px solid #831843;
+    border-radius: 3px;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+}
+
+.frenteTile {
+    background: #991b1b;
+    border: 1px solid #7f1d1d;
+    border-radius: 3px;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 11px;
+    font-style: italic;
+    padding: 3px 12px;
+    cursor: pointer;
+}
+
+.frenteTileActive {
+    background: #dc2626;
+    border: 2px solid #1e293b;
+    border-radius: 3px;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 11px;
+    font-style: italic;
+    padding: 2px 11px;
+    cursor: pointer;
+}
+
 .mainSplit {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 205px;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) 215px;
+    gap: 8px;
     align-items: start;
 }
 
@@ -79,7 +156,7 @@
 .kpiGrid {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 6px;
+    gap: 4px;
 }
 
 @media (max-width: 1200px) {
@@ -95,53 +172,55 @@
 }
 
 .kpiCard {
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
+    border: 1px solid #334155;
+    border-radius: 2px;
     overflow: hidden;
-    background: #f8fafc;
+    background: linear-gradient(180deg, #ffffff 55%, #cbd5e1 100%);
 }
 
 .kpiHeaderBlue {
-    background: #0284c7;
+    background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.55);
     color: #ffffff;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 4px 6px;
+    padding: 5px 6px;
     text-align: center;
 }
 
 .kpiHeaderPurple {
-    background: #6d28d9;
+    background: linear-gradient(180deg, #7c3aed 0%, #6d28d9 100%);
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.45);
     color: #ffffff;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 4px 6px;
+    padding: 5px 6px;
     text-align: center;
 }
 
 .kpiValue {
-    color: #1d4ed8;
-    font-size: 20px;
+    color: #0284c7;
+    font-size: 26px;
     font-weight: 800;
-    padding: 8px 6px;
+    padding: 8px 4px;
     text-align: center;
-    line-height: 1.15;
+    line-height: 1.1;
 }
 
 .kpiValuePurple {
     color: #6d28d9;
-    font-size: 20px;
+    font-size: 26px;
     font-weight: 800;
-    padding: 8px 6px;
+    padding: 8px 4px;
     text-align: center;
-    line-height: 1.15;
+    line-height: 1.1;
 }
 
 .chartPanel {
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
     overflow: hidden;
-    background: #ffffff;
+    background: linear-gradient(135deg, #eef2ff 0%, #ecfdf5 100%);
 }
 
 .chartPanelBar {
@@ -150,27 +229,28 @@
     padding: 5px 10px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: center;
 }
 
 .chartPanelTitle {
     color: #ffffff;
     font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
+    font-weight: 800;
+    letter-spacing: 0.04em;
 }
 
 .disciplinePanel {
-    background: #eff6ff;
-    border: 1px solid #93c5fd;
-    border-radius: 6px;
+    background: linear-gradient(180deg, #e0e7ff 0%, #eff6ff 100%);
+    border: 1.5px solid #818cf8;
+    border-radius: 8px;
     padding: 10px;
+    max-height: 540px;
+    overflow-y: auto;
 }
 
 .matrixPanel {
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
     overflow: hidden;
     background: #ffffff;
 }
@@ -189,40 +269,48 @@
 }
 
 .matrixParentRow {
-    background: #f1f5f9;
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.matrixParentLabel {
+    color: #1d4ed8;
     font-weight: 700;
 }
 
 .matrixTotalRow td {
-    background: #dbeafe;
-    color: #1e3a8a;
+    background: #2563eb;
+    color: #ffffff;
     font-weight: 800;
-    border-top: 2px solid #1d4ed8;
+    border-top: 2px solid #1e3a8a;
 }
 
 .pfDotGreen {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     border-radius: 999px;
     background: #16a34a;
+    border: 1px solid #14532d;
     margin-right: 6px;
 }
 
 .pfDotAmber {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     border-radius: 999px;
-    background: #d97706;
+    background: #eab308;
+    border: 1px solid #713f12;
     margin-right: 6px;
 }
 
 .pfDotRed {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
     border-radius: 999px;
     background: #dc2626;
+    border: 1px solid #7f1d1d;
     margin-right: 6px;
 }

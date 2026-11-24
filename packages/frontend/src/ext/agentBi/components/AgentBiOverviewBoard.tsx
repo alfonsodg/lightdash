@@ -301,8 +301,19 @@ const AgentBiOverviewBoard: FC<Props> = ({
 
     const comboChartOption = useMemo(() => {
         const xLabels = aggregatedWeekly.map((p) => p.week);
+        const pfValues = aggregatedWeekly.flatMap((p) => [p.pfSem, p.pfAcum]);
+        const pfMin = pfValues.length > 0 ? Math.min(...pfValues) : 0.7;
+        const pfMax = pfValues.length > 0 ? Math.max(...pfValues) : 1.1;
+        const y2Min = Number(Math.max(0, pfMin - 0.12).toFixed(2));
+        const y2Max = Number((pfMax + 0.15).toFixed(2));
+        const formatBarK = (val: number) =>
+            Math.abs(val) >= 1000
+                ? `${Math.round(val / 1000)}K`
+                : `${Math.round(val)}`;
+
         return {
-            grid: { bottom: 32, left: 48, right: 48, top: 36 },
+            backgroundColor: 'transparent',
+            grid: { bottom: 28, left: 46, right: 44, top: 44 },
             legend: {
                 data: [
                     'HH GANADAS',
@@ -310,18 +321,42 @@ const AgentBiOverviewBoard: FC<Props> = ({
                     'PF Actual',
                     'PF Acumulado',
                 ],
-                top: 4,
+                top: 6,
             },
             series: [
                 {
                     data: aggregatedWeekly.map((p) => Math.round(p.hhGanadas)),
-                    itemStyle: { color: '#60a5fa' },
+                    itemStyle: { borderRadius: [2, 2, 0, 0], color: '#93c5fd' },
+                    label: {
+                        backgroundColor: 'rgba(255,255,255,0.85)',
+                        borderRadius: 3,
+                        color: '#1e3a8a',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        formatter: (params: { value: number }) =>
+                            formatBarK(params.value),
+                        padding: [2, 4],
+                        position: 'insideTop',
+                        show: true,
+                    },
                     name: 'HH GANADAS',
                     type: 'bar',
                 },
                 {
                     data: aggregatedWeekly.map((p) => Math.round(p.hhGastadas)),
-                    itemStyle: { color: '#4f46e5' },
+                    itemStyle: { borderRadius: [2, 2, 0, 0], color: '#6366f1' },
+                    label: {
+                        backgroundColor: 'rgba(255,255,255,0.85)',
+                        borderRadius: 3,
+                        color: '#1e3a8a',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        formatter: (params: { value: number }) =>
+                            formatBarK(params.value),
+                        padding: [2, 4],
+                        position: 'insideTop',
+                        show: true,
+                    },
                     name: 'HH GASTADAS',
                     type: 'bar',
                 },
@@ -329,9 +364,21 @@ const AgentBiOverviewBoard: FC<Props> = ({
                     data: aggregatedWeekly.map((p) =>
                         Number(p.pfSem.toFixed(2)),
                     ),
-                    itemStyle: { color: '#dc2626' },
+                    itemStyle: { color: '#b91c1c' },
+                    label: {
+                        backgroundColor: '#b91c1c',
+                        borderRadius: 4,
+                        color: '#ffffff',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        padding: [2, 5],
+                        position: 'top',
+                        show: true,
+                    },
+                    lineStyle: { width: 2.5 },
                     name: 'PF Actual',
                     smooth: true,
+                    symbolSize: 6,
                     type: 'line',
                     yAxisIndex: 1,
                 },
@@ -339,9 +386,21 @@ const AgentBiOverviewBoard: FC<Props> = ({
                     data: aggregatedWeekly.map((p) =>
                         Number(p.pfAcum.toFixed(2)),
                     ),
-                    itemStyle: { color: '#1e3a8a' },
+                    itemStyle: { color: '#1e40af' },
+                    label: {
+                        backgroundColor: '#1e40af',
+                        borderRadius: 4,
+                        color: '#ffffff',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        padding: [2, 5],
+                        position: 'bottom',
+                        show: true,
+                    },
+                    lineStyle: { width: 2.5 },
                     name: 'PF Acumulado',
                     smooth: true,
+                    symbolSize: 6,
                     type: 'line',
                     yAxisIndex: 1,
                 },
@@ -350,7 +409,7 @@ const AgentBiOverviewBoard: FC<Props> = ({
             xAxis: { data: xLabels, type: 'category' },
             yAxis: [
                 { name: 'HH', type: 'value' },
-                { max: 1.5, min: 0.5, name: 'PF', type: 'value' },
+                { max: y2Max, min: y2Min, name: 'PF', type: 'value' },
             ],
         };
     }, [aggregatedWeekly]);
@@ -472,24 +531,26 @@ const AgentBiOverviewBoard: FC<Props> = ({
                 <div className={classes.slicerCard}>
                     <div className={classes.slicerLabel}>ÁREA</div>
                     <Group gap={4} wrap="wrap">
-                        <Button
-                            size="compact-xs"
-                            variant={
-                                selectedArea === 'ALL' ? 'filled' : 'outline'
+                        <button
+                            type="button"
+                            className={
+                                selectedArea === 'ALL'
+                                    ? classes.areaTileActive
+                                    : classes.areaTile
                             }
-                            color="indigo"
                             onClick={() => setSelectedArea('ALL')}
                         >
                             Todas
-                        </Button>
+                        </button>
                         {(dataset?.areas ?? []).slice(0, 10).map((area) => (
-                            <Button
+                            <button
                                 key={area}
-                                size="compact-xs"
-                                variant={
-                                    selectedArea === area ? 'filled' : 'outline'
+                                type="button"
+                                className={
+                                    selectedArea === area
+                                        ? classes.areaTileActive
+                                        : classes.areaTile
                                 }
-                                color="indigo"
                                 onClick={() =>
                                     setSelectedArea((prev) =>
                                         prev === area ? 'ALL' : area,
@@ -497,31 +558,33 @@ const AgentBiOverviewBoard: FC<Props> = ({
                                 }
                             >
                                 {area}
-                            </Button>
+                            </button>
                         ))}
                     </Group>
                 </div>
                 <div className={classes.slicerCard}>
                     <div className={classes.slicerLabel}>FRENTE</div>
                     <Group gap={4} wrap="wrap">
-                        <Button
-                            size="compact-xs"
-                            variant={
-                                selectedFrente === 'ALL' ? 'filled' : 'outline'
+                        <button
+                            type="button"
+                            className={
+                                selectedFrente === 'ALL'
+                                    ? classes.frenteTileActive
+                                    : classes.frenteTile
                             }
-                            color="red"
                             onClick={() => setSelectedFrente('ALL')}
                         >
                             Todos
-                        </Button>
+                        </button>
                         {(dataset?.frentes ?? []).map((fr) => (
-                            <Button
+                            <button
                                 key={fr}
-                                size="compact-xs"
-                                variant={
-                                    selectedFrente === fr ? 'filled' : 'outline'
+                                type="button"
+                                className={
+                                    selectedFrente === fr
+                                        ? classes.frenteTileActive
+                                        : classes.frenteTile
                                 }
-                                color="red"
                                 onClick={() =>
                                     setSelectedFrente((prev) =>
                                         prev === fr ? 'ALL' : fr,
@@ -529,7 +592,7 @@ const AgentBiOverviewBoard: FC<Props> = ({
                                 }
                             >
                                 {fr}
-                            </Button>
+                            </button>
                         ))}
                     </Group>
                 </div>
