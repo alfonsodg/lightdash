@@ -42,7 +42,7 @@ WORKDIR /usr/app
 FROM pnpm-base AS base
 COPY --chmod=755 scripts/docker/verify-dbt-image.sh /usr/local/bin/verify-dbt-image
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential \
     g++ \
     libsasl2-modules-gssapi-mit \
@@ -56,7 +56,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Fix package vulnerabilities
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libgnutls28-dev  \
     tar \
     libsystemd0
@@ -232,7 +232,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # -----------------------------
 FROM base AS dev
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     postgresql-client \
     && apt-get clean
 
@@ -512,7 +512,7 @@ ENV PLAYGROUND_DATA_DIR=/usr/app/packages/backend/assets/playground
 
 WORKDIR /usr/app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     git \
     build-essential \
     # Required by node-canvas prebuilt binaries for font rendering in chart images
