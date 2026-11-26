@@ -90,6 +90,188 @@ const toSdkTool = (tool: LlmChatTool): ChatCompletionTool => ({
     type: 'function',
 });
 
+const isOrchestratorChatEndpoint = (baseUrl: string): boolean =>
+    /\/api\/v1\/chat(?:\/stream)?$/i.test(baseUrl) || /:8801(?:\/|$)/.test(baseUrl);
+
+const resolveOrchestratorChatUrl = (baseUrl: string): string =>
+    /\/api\/v1\/chat$/i.test(baseUrl)
+        ? baseUrl
+        : `${baseUrl.replace(/\/api\/v1\/chat\/stream$/i, '')}/api/v1/chat`;
+
+const buildOrchestratorPromptAndContext = (
+    messages: LlmChatMessage[],
+    tools?: LlmChatTool[],
+): { context: string; prompt: string } => {
+    const systemParts = messages
+        .filter((m) => m.role === 'system' && m.content)
+        .map((m) => m.content ?? '');
+    const historyLines = messages
+        .filter((m) => m.role !== 'system')
+        .map((m) => {
+            if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+                return `ASSISTANT_TOOL_CALL: ${JSON.stringify(m.toolCalls)}`;
+            }
+            if (m.role === 'tool') {
+                return `TOOL_RESULT (${m.toolCallId ?? ''}): ${m.content ?? ''}`;
+            }
+            return `${m.role.toUpperCase()}: ${m.content ?? ''}`;
+        });
+
+    const hasTools = tools !== undefined && tools.length > 0;
+    const toolSpec = hasTools
+        ? `\nAVAILABLE_TOOLS:\n${JSON.stringify(
+              tools.map((t) => ({
+                  description: t.description,
+                  name: t.name,
+                  parameters: t.inputSchema,
+              })),
+          )}\nRespond ONLY with valid JSON: either {"tool_call":{"name":"<tool>","arguments":{...}}} or {"final_answer":"<markdown_response>"}.`
+        : '';
+
+    const context = [...systemParts, ...historyLines.slice(0, -1), toolSpec]
+        .filter(Boolean)
+        .join('\n\n')
+        .slice(0, 180_000);
+
+    const lastMsg = messages.at(-1);
+    const prompt = (
+        lastMsg?.role === 'tool'
+            ? `Continue using TOOL_RESULT (${lastMsg.toolCallId ?? ''}): ${lastMsg.content ?? ''}`
+            : (lastMsg?.content ?? 'Analyze the provided context.')
+    ).slice(0, 7800);
+
+    return { context, prompt };
+};
+
+const parseOrchestratorAnswer = (
+    answer: string,
+    hasTools: boolean,
+): LlmChatResult => {
+    if (hasTools) {
+        try {
+            const cleaned = answer
+                .trim()
+                .replace(/^```(?:json)?\s*/i, '')
+                .replace(/\s*```$/, '');
+            const parsed = JSON.parse(cleaned) as {
+                final_answer?: unknown;
+                tool_call?: { arguments?: unknown; name?: unknown };
+            };
+            if (
+                parsed.tool_call &&
+                typeof parsed.tool_call.name === 'string' &&
+                parsed.tool_call.name.length > 0
+            ) {
+                return {
+                    content: null,
+                    finishReason: 'tool_calls',
+                    toolCalls: [
+                        {
+                            arguments: JSON.stringify(
+                                parsed.tool_call.arguments ?? {},
+                            ),
+                            id: `orch_${Date.now()}`,
+                            name: parsed.tool_call.name,
+                        },
+                    ],
+                    usage: { completionTokens: 0, promptTokens: 0 },
+                };
+            }
+            if (typeof parsed.final_answer === 'string') {
+                return {
+                    content: parsed.final_answer,
+                    finishReason: 'stop',
+                    toolCalls: [],
+                    usage: { completionTokens: 0, promptTokens: 0 },
+                };
+            }
+        } catch {
+            // Fall back to returning raw text answer.
+        }
+    }
+    return {
+        content: answer,
+        finishReason: 'stop',
+        toolCalls: [],
+        usage: { completionTokens: 0, promptTokens: 0 },
+    };
+};
+
+const createOrchestratorChatClient = (options: {
+    apiKey: string;
+    baseUrl: string;
+    fetchImpl?: typeof globalThis.fetch;
+    timeoutMs?: number;
+}): LlmChatClient => {
+    const endpoint = resolveOrchestratorChatUrl(options.baseUrl);
+    const fetchFn = options.fetchImpl ?? globalThis.fetch;
+    return {
+        complete: async (input) => {
+            const hasTools =
+                input.tools !== undefined && input.tools.length > 0;
+            const { context, prompt } = buildOrchestratorPromptAndContext(
+                input.messages,
+                input.tools,
+            );
+            const timeoutController =
+                options.timeoutMs && options.timeoutMs > 0
+                    ? AbortSignal.timeout(options.timeoutMs)
+                    : undefined;
+            const signal = input.signal
+                ? timeoutController
+                    ? AbortSignal.any([input.signal, timeoutController])
+                    : input.signal
+                : timeoutController;
+
+            let response: Response;
+            try {
+                response = await fetchFn(endpoint, {
+                    body: JSON.stringify({
+                        consumer: 'isp',
+                        context,
+                        profile: 'default',
+                        prompt,
+                        response_format: hasTools ? 'json_object' : 'text',
+                    }),
+                    headers: {
+                        'content-type': 'application/json',
+                        'x-api-key': options.apiKey,
+                    },
+                    method: 'POST',
+                    signal,
+                });
+            } catch (error) {
+                if (
+                    typeof DOMException !== 'undefined' &&
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                ) {
+                    throw error;
+                }
+                const message =
+                    error instanceof Error && error.message !== ''
+                        ? error.message
+                        : 'The orchestrator request failed.';
+                throw new LlmChatError('UPSTREAM_ERROR', message);
+            }
+
+            if (!response.ok) {
+                const body = await response.text().catch(() => '');
+                throw new LlmChatError(
+                    'UPSTREAM_ERROR',
+                    `Orchestrator HTTP ${response.status}: ${body || response.statusText}`,
+                );
+            }
+            const payload = (await response.json()) as {
+                answer?: unknown;
+            };
+            const answer =
+                typeof payload.answer === 'string' ? payload.answer : '';
+            return parseOrchestratorAnswer(answer, hasTools);
+        },
+    };
+};
+
 export const createOpenAiChatClient = (options: {
     apiKey: string;
     baseUrl: string;
@@ -109,6 +291,14 @@ export const createOpenAiChatClient = (options: {
             'UPSTREAM_ERROR',
             'Missing AGENT_LLM_API_KEY for the model endpoint.',
         );
+    }
+    if (isOrchestratorChatEndpoint(baseUrl)) {
+        return createOrchestratorChatClient({
+            apiKey: options.apiKey,
+            baseUrl,
+            fetchImpl: options.fetchImpl,
+            timeoutMs: options.timeoutMs,
+        });
     }
     const client = new OpenAI({
         apiKey: options.apiKey,

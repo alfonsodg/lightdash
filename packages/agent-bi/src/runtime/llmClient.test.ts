@@ -189,4 +189,79 @@ describe('openai chat client', () => {
             },
         ]);
     });
+
+    it('routes through ai-orchestrator-chat with x-api-key and parses tool_call and final_answer', async () => {
+        const calls: Array<{ headers: HeadersInit | undefined; url: string; body: string }> = [];
+        let turn = 0;
+        const client = createOpenAiChatClient({
+            apiKey: 'isp-secret-key',
+            baseUrl: 'http://127.0.0.1:8801',
+            fetchImpl: async (input, init) => {
+                turn += 1;
+                calls.push({
+                    body: String(init?.body ?? ''),
+                    headers: init?.headers,
+                    url: String(input),
+                });
+                const answer =
+                    turn === 1
+                        ? JSON.stringify({
+                              tool_call: {
+                                  arguments: { projectUuid: 'p1' },
+                                  name: 'list_explores',
+                              },
+                          })
+                        : JSON.stringify({
+                              final_answer: 'Hay 7 explores disponibles.',
+                          });
+                return new Response(
+                    JSON.stringify({
+                        answer,
+                        answer_status: 'generated',
+                        answer_timing_ms: 42.1,
+                    }),
+                    {
+                        headers: { 'content-type': 'application/json' },
+                        status: 200,
+                    },
+                );
+            },
+        });
+
+        const first = await client.complete({
+            messages: [{ content: 'Lista explores', role: 'user' }],
+            tools: [
+                {
+                    description: 'List project explores',
+                    inputSchema: { type: 'object' },
+                    name: 'list_explores',
+                },
+            ],
+        });
+        expect(calls[0].url).toBe('http://127.0.0.1:8801/api/v1/chat');
+        expect(calls[0].headers).toEqual(
+            expect.objectContaining({ 'x-api-key': 'isp-secret-key' }),
+        );
+        expect(JSON.parse(calls[0].body)).toEqual(
+            expect.objectContaining({ consumer: 'isp', response_format: 'json_object' }),
+        );
+        expect(first.finishReason).toBe('tool_calls');
+        expect(first.toolCalls[0].name).toBe('list_explores');
+
+        const second = await client.complete({
+            messages: [
+                { content: 'Lista explores', role: 'user' },
+                { content: 'ok', role: 'tool', toolCallId: 'orch_1' },
+            ],
+            tools: [
+                {
+                    description: 'List project explores',
+                    inputSchema: { type: 'object' },
+                    name: 'list_explores',
+                },
+            ],
+        });
+        expect(second.finishReason).toBe('stop');
+        expect(second.content).toBe('Hay 7 explores disponibles.');
+    });
 });
