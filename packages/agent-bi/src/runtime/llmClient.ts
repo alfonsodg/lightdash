@@ -125,19 +125,21 @@ const buildOrchestratorPromptAndContext = (
                   name: t.name,
                   parameters: t.inputSchema,
               })),
-          )}\nRespond ONLY with valid JSON: either {"tool_call":{"name":"<tool>","arguments":{...}}} or {"final_answer":"<markdown_response>"}.`
+          )}\nLightdash query rules:\n- For run_metric_query dimensions/metrics/sorts, ALWAYS use underscore fieldId "<tableName>_<fieldName>" (e.g. "tareo_parte_diario_det_total_horas"), NEVER dot notation ("table.field").\n- Pick an exploreName whose tables list includes ALL tables referenced in dimensions and metrics.\nRespond ONLY with valid JSON: either {"tool_call":{"name":"<tool>","arguments":{...}}} or {"final_answer":"<markdown_response>"}.`
         : '';
 
-    const context = [...systemParts, ...historyLines.slice(0, -1), toolSpec]
+    const lastMsg = messages.at(-1);
+    const contextHistory =
+        lastMsg?.role === 'tool' ? historyLines : historyLines.slice(0, -1);
+    const context = [...systemParts, ...contextHistory, toolSpec]
         .filter(Boolean)
         .join('\n\n')
         .slice(0, 180_000);
 
-    const lastMsg = messages.at(-1);
     const prompt = (
         lastMsg?.role === 'tool'
-            ? `Continue using TOOL_RESULT (${lastMsg.toolCallId ?? ''}): ${lastMsg.content ?? ''}`
-            : (lastMsg?.content ?? 'Analyze the provided context.')
+            ? `Continue using the latest TOOL_RESULT (${lastMsg.toolCallId ?? ''}) in context. Respond ONLY with valid JSON.`
+            : lastMsg?.content?.trim() || 'Analyze the provided context.'
     ).slice(0, 7800);
 
     return { context, prompt };

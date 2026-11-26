@@ -248,10 +248,11 @@ describe('openai chat client', () => {
         expect(first.finishReason).toBe('tool_calls');
         expect(first.toolCalls[0].name).toBe('list_explores');
 
+        const largePayload = 'x'.repeat(9000);
         const second = await client.complete({
             messages: [
                 { content: 'Lista explores', role: 'user' },
-                { content: 'ok', role: 'tool', toolCallId: 'orch_1' },
+                { content: largePayload, role: 'tool', toolCallId: 'orch_1' },
             ],
             tools: [
                 {
@@ -261,6 +262,12 @@ describe('openai chat client', () => {
                 },
             ],
         });
+        const secondBody = JSON.parse(calls[1].body) as {
+            context: string;
+            prompt: string;
+        };
+        expect(secondBody.prompt.length).toBeLessThan(200);
+        expect(secondBody.context).toContain(largePayload);
         expect(second.finishReason).toBe('stop');
         expect(second.content).toBe('Hay 7 explores disponibles.');
     });
