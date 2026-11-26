@@ -78,14 +78,27 @@ export const toExploreSummaries = (results: unknown): unknown => {
     return { explores };
 };
 
+const extractExploreFieldIds = (
+    tables: Record<string, unknown>,
+    kind: 'dimensions' | 'metrics',
+): string[] =>
+    Object.entries(tables).flatMap(([tableName, tableValue]) => {
+        const group = asRecord(asRecord(tableValue)[kind]);
+        return Object.keys(group).map((fieldName) => `${tableName}_${fieldName}`);
+    });
+
 export const toExploreDetail = (results: unknown): unknown => {
     const record = asRecord(results);
     const tables = asRecord(record.tables);
+    const dimensions = extractExploreFieldIds(tables, 'dimensions');
+    const metrics = extractExploreFieldIds(tables, 'metrics');
     return {
         explore: {
             baseTable: nullableText(record.baseTable),
             description: nullableText(record.description),
+            ...(dimensions.length > 0 ? { dimensions } : {}),
             label: nullableText(record.label),
+            ...(metrics.length > 0 ? { metrics } : {}),
             name:
                 typeof record.name === 'string' && record.name.length > 0
                     ? record.name

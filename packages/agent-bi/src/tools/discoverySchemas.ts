@@ -112,7 +112,9 @@ export const getExploreOutputSchema = z.object({
     explore: z.object({
         baseTable: z.string().nullable(),
         description: z.string().nullable(),
+        dimensions: z.array(z.string()).optional(),
         label: z.string().nullable(),
+        metrics: z.array(z.string()).optional(),
         name: z.string(),
         tables: z.array(z.string()),
     }),

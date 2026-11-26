@@ -271,4 +271,32 @@ describe('openai chat client', () => {
         expect(second.finishReason).toBe('stop');
         expect(second.content).toBe('Hay 7 explores disponibles.');
     });
+
+    it('preserves /api/v1/chat/fast path when routing through ai-orchestrator-chat fast lane', async () => {
+        const urls: string[] = [];
+        const client = createOpenAiChatClient({
+            apiKey: 'isp-secret-key',
+            baseUrl: 'http://127.0.0.1:8801/api/v1/chat/fast',
+            fetchImpl: async (input) => {
+                urls.push(String(input));
+                return new Response(
+                    JSON.stringify({
+                        answer: 'Respuesta rápida 9B.',
+                        answer_status: 'generated',
+                        answer_timing_ms: 180.5,
+                    }),
+                    {
+                        headers: { 'content-type': 'application/json' },
+                        status: 200,
+                    },
+                );
+            },
+        });
+
+        const res = await client.complete({
+            messages: [{ content: 'Hola', role: 'user' }],
+        });
+        expect(urls).toEqual(['http://127.0.0.1:8801/api/v1/chat/fast']);
+        expect(res.content).toBe('Respuesta rápida 9B.');
+    });
 });

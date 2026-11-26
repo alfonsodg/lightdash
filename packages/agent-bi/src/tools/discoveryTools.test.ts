@@ -241,6 +241,46 @@ describe('get_explore', () => {
         });
     });
 
+    it('includes underscore fieldIds for dimensions and metrics when present', async () => {
+        const recorded: DiscoveryFetchRequest[] = [];
+        const { tools } = setup(
+            {
+                [`/api/v1/projects/${PROJECT_UUID}/explores/tareo`]: {
+                    results: {
+                        baseTable: 'tareo',
+                        description: null,
+                        label: 'Tareo',
+                        name: 'tareo',
+                        tables: {
+                            tareo: {
+                                dimensions: { fase: {}, frente: {} },
+                                metrics: { total_horas: {} },
+                            },
+                        },
+                    },
+                    status: 'ok',
+                },
+            },
+            recorded,
+        );
+        const result = await tools.executeTool(
+            'get_explore',
+            { exploreId: 'tareo', projectUuid: PROJECT_UUID },
+            allowAllPrincipal(),
+        );
+        expect(result).toEqual({
+            explore: {
+                baseTable: 'tareo',
+                description: null,
+                dimensions: ['tareo_fase', 'tareo_frente'],
+                label: 'Tareo',
+                metrics: ['tareo_total_horas'],
+                name: 'tareo',
+                tables: ['tareo'],
+            },
+        });
+    });
+
     it('rejects a blank explore id', async () => {
         const recorded: DiscoveryFetchRequest[] = [];
         const { tools } = setup({}, recorded);

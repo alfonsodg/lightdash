@@ -91,12 +91,19 @@ const toSdkTool = (tool: LlmChatTool): ChatCompletionTool => ({
 });
 
 const isOrchestratorChatEndpoint = (baseUrl: string): boolean =>
-    /\/api\/v1\/chat(?:\/stream)?$/i.test(baseUrl) || /:8801(?:\/|$)/.test(baseUrl);
+    /\/api\/v1\/chat(?:\/fast)?(?:\/stream)?$/i.test(baseUrl) ||
+    /:8801(?:\/|$)/.test(baseUrl);
 
-const resolveOrchestratorChatUrl = (baseUrl: string): string =>
-    /\/api\/v1\/chat$/i.test(baseUrl)
-        ? baseUrl
-        : `${baseUrl.replace(/\/api\/v1\/chat\/stream$/i, '')}/api/v1/chat`;
+const resolveOrchestratorChatUrl = (baseUrl: string): string => {
+    const trimmed = baseUrl.replace(/\/+$/, '');
+    if (/\/api\/v1\/chat(?:\/fast)?$/i.test(trimmed)) {
+        return trimmed;
+    }
+    if (/\/api\/v1\/chat(?:\/fast)?\/stream$/i.test(trimmed)) {
+        return trimmed.replace(/\/stream$/i, '');
+    }
+    return `${trimmed}/api/v1/chat`;
+};
 
 const buildOrchestratorPromptAndContext = (
     messages: LlmChatMessage[],
