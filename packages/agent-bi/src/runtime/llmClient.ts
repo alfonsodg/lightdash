@@ -152,16 +152,26 @@ const buildOrchestratorPromptAndContext = (
     return { context, prompt };
 };
 
+const extractJsonObject = (text: string): string => {
+    const trimmed = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/, '');
+    if (trimmed.startsWith('{')) {
+        return trimmed;
+    }
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
+};
+
 const parseOrchestratorAnswer = (
     answer: string,
     hasTools: boolean,
 ): LlmChatResult => {
     if (hasTools) {
         try {
-            const cleaned = answer
-                .trim()
-                .replace(/^```(?:json)?\s*/i, '')
-                .replace(/\s*```$/, '');
+            const cleaned = extractJsonObject(answer);
             const parsed = JSON.parse(cleaned) as {
                 final_answer?: unknown;
                 tool_call?: { arguments?: unknown; name?: unknown };
@@ -240,7 +250,9 @@ const createOrchestratorChatClient = (options: {
                         context,
                         profile: 'default',
                         prompt,
-                        response_format: hasTools ? 'json_object' : 'text',
+                        // Use 'text' so orchestrator answer_validation never trips 502/circuit-breaker
+                        // when 9B returns prose or fenced JSON; parseOrchestratorAnswer handles both.
+                        response_format: 'text',
                     }),
                     headers: {
                         'content-type': 'application/json',

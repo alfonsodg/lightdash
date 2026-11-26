@@ -243,7 +243,7 @@ describe('openai chat client', () => {
             expect.objectContaining({ 'x-api-key': 'isp-secret-key' }),
         );
         expect(JSON.parse(calls[0].body)).toEqual(
-            expect.objectContaining({ consumer: 'isp', response_format: 'json_object' }),
+            expect.objectContaining({ consumer: 'isp', response_format: 'text' }),
         );
         expect(first.finishReason).toBe('tool_calls');
         expect(first.toolCalls[0].name).toBe('list_explores');
