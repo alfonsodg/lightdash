@@ -191,7 +191,7 @@ describe('openai chat client', () => {
     });
 
     it('routes through ai-orchestrator-chat with x-api-key and parses tool_call and final_answer', async () => {
-        const calls: Array<{ headers: HeadersInit | undefined; url: string; body: string }> = [];
+        const calls: Array<{ headers: unknown; url: string; body: string }> = [];
         let turn = 0;
         const client = createOpenAiChatClient({
             apiKey: 'isp-secret-key',
