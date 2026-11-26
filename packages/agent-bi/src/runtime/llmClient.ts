@@ -157,12 +157,34 @@ const extractJsonObject = (text: string): string => {
         .trim()
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/\s*```$/, '');
-    if (trimmed.startsWith('{')) {
+    const start = trimmed.indexOf('{');
+    if (start < 0) {
         return trimmed;
     }
-    const start = trimmed.indexOf('{');
     const end = trimmed.lastIndexOf('}');
-    return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
+    const candidate = end > start ? trimmed.slice(start, end + 1) : trimmed.slice(start);
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (const ch of candidate) {
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch === '\\' && inString) {
+            escaped = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (!inString) {
+            if (ch === '{') depth += 1;
+            else if (ch === '}') depth -= 1;
+        }
+    }
+    return depth > 0 ? `${candidate}${'}'.repeat(depth)}` : candidate;
 };
 
 const parseOrchestratorAnswer = (

@@ -299,4 +299,40 @@ describe('openai chat client', () => {
         expect(urls).toEqual(['http://127.0.0.1:8801/api/v1/chat/fast']);
         expect(res.content).toBe('Respuesta rápida 9B.');
     });
+
+    it('recovers tool_call JSON when 9B omits a trailing closing brace', async () => {
+        const client = createOpenAiChatClient({
+            apiKey: 'isp-secret-key',
+            baseUrl: 'http://127.0.0.1:8801/api/v1/chat/fast',
+            fetchImpl: async () =>
+                new Response(
+                    JSON.stringify({
+                        answer: '{"tool_call":{"name":"run_metric_query","arguments":{"exploreName":"tareo_parte_diario_det","limit":5}}',
+                        answer_status: 'generated',
+                        answer_timing_ms: 120,
+                    }),
+                    {
+                        headers: { 'content-type': 'application/json' },
+                        status: 200,
+                    },
+                ),
+        });
+
+        const res = await client.complete({
+            messages: [{ content: 'Top 5', role: 'user' }],
+            tools: [
+                {
+                    description: 'Run metric query',
+                    inputSchema: { type: 'object' },
+                    name: 'run_metric_query',
+                },
+            ],
+        });
+        expect(res.finishReason).toBe('tool_calls');
+        expect(res.toolCalls[0].name).toBe('run_metric_query');
+        expect(JSON.parse(res.toolCalls[0].arguments)).toEqual({
+            exploreName: 'tareo_parte_diario_det',
+            limit: 5,
+        });
+    });
 });
